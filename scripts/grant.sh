@@ -8,4 +8,6 @@ adb -s "$S" shell cmd notification allow_listener com.gathin.tvhome/.GuardReviva
 adb -s "$S" shell settings put secure enabled_accessibility_services com.gathin.tvhome/.SleepService
 adb -s "$S" shell settings put secure accessibility_enabled 1
 adb -s "$S" shell pm grant com.gathin.tvhome android.permission.READ_TV_LISTINGS
+adb -s "$S" shell appops set com.gathin.tvhome WRITE_SETTINGS allow
+adb -s "$S" shell cmd notification allow_dnd com.gathin.tvhome
 echo granted

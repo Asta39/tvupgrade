@@ -605,6 +605,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 @Override public void nextWallpaper() { if (wallpaperPlayer != null) wallpaperPlayer.step(1); }
                 @Override public void showInputs() { MainActivity.this.showInputs(); }
                 @Override public void openSettings() { open(systemIntent(Settings.ACTION_SETTINGS)); }
+                @Override public void openSoundSettings() {
+                    Intent sound = new Intent("com.android.tv.action.VIEW_SOUND_SETTINGS");
+                    open(getPackageManager().resolveActivity(sound, 0) != null ? sound : systemIntent(Settings.ACTION_SOUND_SETTINGS));
+                }
+                @Override public void openNetworkSettings() { open(systemIntent(Settings.ACTION_WIFI_SETTINGS)); }
+                @Override public void profileChanged() { recreate(); }
             }, mediaWatch);
         }
         if (cfg.fadeRows) TopFade.attach(grid, 48 * density);

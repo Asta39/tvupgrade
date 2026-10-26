@@ -34,5 +34,47 @@
   "icon_only_inputs": true,
   "now_playing": true,
   "control_center": true,
-  "show_inputs_pill": false
+  "show_inputs_pill": false,
+  "profiles": [
+    {
+      "name": "Ian",
+      "dock_apps": [
+        "com.netflix.ninja",
+        "com.music.bitchord.tv",
+        "io.gh.reisxd.tizentube.cobalt",
+        "com.crunchyroll.crunchyroid",
+        "com.xeljazwi.shuffler",
+        "net.anifam.app",
+        "com.spotify.tv.android",
+        "com.apple.atve.androidtv.appletv"
+      ],
+      "wallpapers": [
+        "01-forest-rays.jpg",
+        "02-misty-pines.jpg",
+        "03-golden-peak.jpg",
+        "04-fog-forest.jpg",
+        "05-green-lake.jpg"
+      ]
+    },
+    {
+      "name": "Bond",
+      "dock_apps": [
+        "com.netflix.ninja",
+        "com.amazon.amazonvideo.livingroom",
+        "io.gh.reisxd.tizentube.cobalt",
+        "com.crunchyroll.crunchyroid",
+        "com.xeljazwi.shuffler",
+        "net.anifam.app",
+        "com.rmedia.rplayer",
+        "com.apple.atve.androidtv.appletv"
+      ],
+      "wallpapers": [
+        "06-tea-hills.jpg",
+        "07-flower-sunset.jpg",
+        "08-fern-dark.jpg",
+        "09-fern-canopy.jpg",
+        "03-golden-peak.jpg"
+      ]
+    }
+  ]
 }

@@ -9,6 +9,10 @@
 
     <!-- keep_watching (this fork only): read the Continue watching rows and fetch their posters. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Control Center (this fork): Do Not Disturb and the brightness slider; both granted once over adb (scripts/grant.sh). -->
+    <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
+    <uses-permission android:name="android.permission.WRITE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.READ_TV_LISTINGS" />
     <uses-permission android:name="com.android.providers.tv.permission.READ_EPG_DATA" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
