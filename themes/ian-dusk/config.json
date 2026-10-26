@@ -31,5 +31,7 @@
   "ambient_glow": false,
   "dock_band": false,
   "show_network_pill": false,
-  "icon_only_inputs": true
+  "icon_only_inputs": true,
+  "now_playing": true,
+  "control_center": true
 }

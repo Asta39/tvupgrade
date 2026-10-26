@@ -141,6 +141,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private FrameLayout root;
     private WallpaperPlayer wallpaperPlayer;
     private HomeExtras homeExtras;
+    private MediaWatch mediaWatch;
+    private ControlCenter controlCenter;
     private GlassView glass;
     private View ambient;
     private TextView heroName;
@@ -596,6 +598,15 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 singleRow, cfg.dockBandAll));
         WallpaperPlayer.onGlass = grid::invalidate;
         homeExtras = HomeExtras.attach(this, findViewById(R.id.root), clockBlock, grid);
+        if (Config.nowPlaying || Config.controlCenter) mediaWatch = new MediaWatch(this);
+        if (Config.nowPlaying) mediaWatch.addListener(new NowPlayingCard(this, findViewById(R.id.root), grid, homeExtras));
+        if (Config.controlCenter) {
+            controlCenter = new ControlCenter(this, new ControlCenter.Host() {
+                @Override public void nextWallpaper() { if (wallpaperPlayer != null) wallpaperPlayer.step(1); }
+                @Override public void showInputs() { MainActivity.this.showInputs(); }
+                @Override public void openSettings() { open(systemIntent(Settings.ACTION_SETTINGS)); }
+            }, mediaWatch);
+        }
         if (cfg.fadeRows) TopFade.attach(grid, 48 * density);
         // Reduced motion: the tiles are simply there, with no entrance (reloadApps skips it there too).
         if (animations && !reducedMotion) {
@@ -962,6 +973,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             return;
         }
         if (homeExtras != null) homeExtras.refresh();
+        if (mediaWatch != null) mediaWatch.start();
+        // Set here, after the top bar has wired its own click: the gear opens Control Center, which links to Settings.
+        if (controlCenter != null) findViewById(R.id.btnSettings).setOnClickListener(v -> controlCenter.open());
         restartIdleClock();
         promptsPaused = false;
         if (grid.getAdapter() == null) grid.setAdapter(adapter);   // dropped by onTrimMemory
@@ -1164,6 +1178,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         root.removeCallbacks(showIdleClock);
         endReorder();   // Home or another app while reordering keeps the order so far
         wallpaperPlayer.stop();
+        if (mediaWatch != null) mediaWatch.stop();
+        if (controlCenter != null) controlCenter.close();
         stopAmbientAnimation();
         hero.animate().cancel();
         ambient.animate().cancel();
@@ -1269,6 +1285,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         // Vendor keys (TCL Netflix button, 4062) never reach the key services, only the focused window.
         if (event.getKeyCode() >= 1000 && RemoteKeys.handle(this, event, homeAppKeys.get(event.getKeyCode()), null)) return true;
         if (handleSettingsKey(event)) return true;
+        // This fork: the remote's Menu key opens Control Center, as a long press of the TV button does on tvOS.
+        if (controlCenter != null && event.getKeyCode() == KeyEvent.KEYCODE_MENU) {
+            if (event.getAction() == KeyEvent.ACTION_UP) controlCenter.open();
+            return true;
+        }
         // This fork: CH+/CH- (or Page Up/Down) on Home flip through the wallpapers; Live TV still gets them there.
         int k = event.getKeyCode();
         if (k == KeyEvent.KEYCODE_CHANNEL_UP || k == KeyEvent.KEYCODE_CHANNEL_DOWN

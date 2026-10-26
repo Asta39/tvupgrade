@@ -37,6 +37,12 @@ final class HomeExtras {
     private LinearLayout row;
     private TextView rowTitle;
     private List<KeepWatching.Item> shown;
+    private View clockBox;
+
+    /** Bottom edge of the hero clock in root coordinates; a sensible default without it. */
+    int clockBottom() {
+        return clockBox != null && clockBox.getHeight() > 0 ? clockBox.getBottom() : Math.round(220 * dp);
+    }
 
     private HomeExtras(Activity activity, FrameLayout root, RecyclerView grid) {
         this.activity = activity;
@@ -108,6 +114,7 @@ final class HomeExtras {
                 Gravity.TOP | Gravity.CENTER_HORIZONTAL);
         lp.topMargin = Math.round(44 * dp);
         // Behind the grid and top bar (index 0 would sit under the wallpaper): just above the ambient glow.
+        clockBox = box;
         int at = Math.min(3, root.getChildCount());
         root.addView(box, at, lp);
         // The picture's foreground, in front of the clock and behind everything else (WallpaperPlayer.onDepth).

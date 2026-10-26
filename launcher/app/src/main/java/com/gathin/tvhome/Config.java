@@ -403,10 +403,10 @@ final class Config {
     /** Square tiles whose icon fills the whole card, tvOS style (theme "icon_fill"); off by default. */
     static boolean iconFill;
     /** This fork: a large centred clock (theme "hero_clock") and a Continue watching row ("keep_watching"). */
-    static boolean heroClock, keepWatching;
+    static boolean heroClock, keepWatching, nowPlaying, controlCenter;
 
     static Config load(Context ctx) {
-        iconFill = heroClock = keepWatching = false;
+        iconFill = heroClock = keepWatching = nowPlaying = controlCenter = false;
         Resources res = ctx.getResources();
         List<String> dock = new ArrayList<>(Arrays.asList(res.getStringArray(R.array.dock_apps)));
         boolean fillDock = res.getBoolean(R.bool.fill_dock);
@@ -569,6 +569,8 @@ final class Config {
             iconFill = bool(json, "icon_fill", false);
             heroClock = bool(json, "hero_clock", false);
             keepWatching = bool(json, "keep_watching", false);
+            nowPlaying = bool(json, "now_playing", false);
+            controlCenter = bool(json, "control_center", false);
             background = color(json, "background_color", background);
             skyIntensity = integer(json, "sky_intensity", skyIntensity, 0, 100);
             settingsKeycodes = intArray(json, "settings_key_keycodes", settingsKeycodes);

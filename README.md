@@ -27,6 +27,18 @@ All nine wallpapers, one press of **CH +** apart:
 
 ![All apps](screenshots/all-apps.jpg)
 
+**Now Playing:** while music plays, a small frosted mini player (Apple Music style) sits between the clock and the
+dock. Press Up to focus it: it turns white, OK plays or pauses, and Left/Right skip tracks.
+
+![Now Playing card](screenshots/now-playing.jpg)
+
+![Now Playing, focused](screenshots/now-playing-focus.jpg)
+
+**Control Center:** press the gear button or the remote's Menu key. A frosted panel slides in from the right over
+a dimmed home screen.
+
+![Control Center](screenshots/control-center.jpg)
+
 **Before:** stock Google TV, with sponsored rows, promos and a profile wall.
 
 ![Stock Google TV home](screenshots/before.jpg)
@@ -40,7 +52,11 @@ All nine wallpapers, one press of **CH +** apart:
   as full-bleed rounded squares along the bottom edge. The selected icon lifts slightly.
 - **All your other apps** wait below the dock. Press **Down** and they slide up while the clock fades out. Press
   **Up** and you're back.
-- **Two quiet buttons** in the top right: Inputs (HDMI 1–3, AV, Live TV) and Settings.
+- **Two quiet buttons** in the top right: Inputs (HDMI 1–3, AV, Live TV) and Control Center.
+- **Now Playing:** an Apple Music–style mini player that appears only while something is playing or paused, and
+  steps aside when you browse the apps below.
+- **Control Center:** the time, what's playing with back/play-pause/next, a volume slider, and six round controls:
+  Sleep, Sleep timer (cycles 15/30/60/90 min/off), Screensaver, next Wallpaper, Inputs and Settings.
 - **Nine 4K wallpapers** that rotate every hour with a soft cross-fade.
 
 ## Remote
@@ -51,6 +67,8 @@ All nine wallpapers, one press of **CH +** apart:
 | **Down** | Show all apps |
 | **Up** | Back to the dock, then up to Inputs / Settings |
 | **OK** on an icon | Open the app |
+| **Menu** or the gear | Control Center (Back closes it) |
+| **Up** from the dock, then **OK** / **Left** / **Right** | Play/pause / previous / next on the Now Playing card |
 
 ## What was removed
 
@@ -80,6 +98,8 @@ The launcher in [`launcher/`](launcher/) is cleanyourtv's reference launcher (pl
 | `dock_glass` | Frosted dock made from a pre-blurred copy of the wallpaper (no live blur). Off in this theme |
 | `keep_watching` | A row of Continue watching cards with posters. Off in this theme, and the only part that uses the internet |
 | CH+/CH− | Step through the wallpapers on Home |
+| `now_playing` | The mini player, from Android's media sessions (needs the notification-listener grant below) |
+| `control_center` | The Control Center panel; Sleep uses a small accessibility service that filters no keys |
 
 The theme itself is [`themes/ian-dusk/`](themes/ian-dusk/): `config.json`, nine 3840×2160 wallpapers, and six depth
 cut-outs. Forest rays and the two ferns have no cut-out on purpose: their busy foliage fills the frame, and
@@ -103,6 +123,13 @@ if shown) turned on, Google's `adb`, Python 3, and JDK 17 + the Android SDK for 
 scripts/debloat.sh <tv ip>          # backs up, then disables the list (accept the ADB prompt on the TV)
 scripts/install-launcher.sh <tv ip> # builds the launcher and makes it Home
 scripts/push-theme.sh <tv ip>       # wallpapers, depth cut-outs, layout
+```
+
+Two one-time grants for Now Playing and Control Center's Sleep (or run `scripts/grant.sh <tv ip>`):
+
+```bash
+adb shell cmd notification allow_listener com.gathin.tvhome/.GuardRevival
+adb shell settings put secure enabled_accessibility_services com.gathin.tvhome/.SleepService
 ```
 
 The debloat list is tested on a **TCL G10** (Android 12, build STT2.230203.001). For any other TV, start from that

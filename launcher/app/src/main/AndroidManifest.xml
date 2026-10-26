@@ -237,6 +237,21 @@
             </intent-filter>
         </receiver>
 
+        <!-- This fork: standby and the sleep timer for Control Center. Filters no keys (see SleepService). -->
+        <service
+            android:name=".SleepService"
+            android:exported="false"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/sleep_service" />
+        </service>
+        <receiver android:name=".SleepService$Fire" android:exported="false" />
+
         <service
             android:name=".InputKeyService"
             android:exported="false"
