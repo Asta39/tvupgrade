@@ -1,0 +1,28 @@
+# TCL G10 (G10_4K_GB_NF_32BIT), Android 12, STT2.230203.001 - this TV's applied list
+# Kept by choice: katniss, tv.remote.service, mediashell, airplay/miracast, dreamx, gamebar, ttvs (updates)
+# Undo:  ../scripts/restore.sh <tv ip>
+# Batch 1: telemetry / ACR
+tv.samba.ssm.ui
+com.tcl.logkit
+# Batch 2: TCL content, ads, promos
+com.tcl.channelplus
+com.tcl.tv.tclhome_passive
+com.tcl.partnercustomizer
+com.tcl.interactive
+com.tcl.waterfall.overseas
+# Batch 3: demo mode, preloads, unused services
+com.tcl.exhibit
+com.tcl.esticker
+com.tcl.ocean.instructions
+com.tcl.repairguide
+com.tcl.ui_mediaCenter
+com.tcl.UpdatePeripheral
+com.tcl.guard
+com.tcl.magiconnectfree
+com.tcl.smartalexa
+com.google.android.feedback
+com.google.android.marvin.talkback
+com.google.android.youtube.tvmusic
+com.google.android.play.games
+# Batch 4: setup wizard (claims Home on Google TV)
+com.google.android.tungsten.setupwraith

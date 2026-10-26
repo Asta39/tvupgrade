@@ -1,0 +1,11 @@
+backup/
+shots/
+tools/venv/
+tools/adbkey/
+launcher/.gradle/
+launcher/app/build/
+launcher/build/
+launcher/local.properties
+*.apk
+__pycache__/
+.DS_Store
