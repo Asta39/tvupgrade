@@ -52,7 +52,7 @@ a dimmed home screen.
   as full-bleed rounded squares along the bottom edge. The selected icon lifts slightly.
 - **All your other apps** wait below the dock. Press **Down** and they slide up while the clock fades out. Press
   **Up** and you're back.
-- **Two quiet buttons** in the top right: Inputs (HDMI 1–3, AV, Live TV) and Control Center.
+- **One quiet button** in the top right: Control Center (Inputs lives inside it).
 - **Now Playing:** an Apple Music–style mini player that appears only while something is playing or paused, and
   steps aside when you browse the apps below.
 - **Control Center:** the time, what's playing with back/play-pause/next, a volume slider, and six round controls:

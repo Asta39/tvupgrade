@@ -39,7 +39,7 @@ final class NowPlayingCard implements MediaWatch.Listener {
     private final GradientDrawable trackBg, fillBg;
     private final Handler tick = new Handler(Looper.getMainLooper());
     private MediaWatch.Track track;
-    private boolean shown, scrolledAway;
+    private boolean shown, scrolledAway, placed;
 
     NowPlayingCard(Activity activity, FrameLayout root, View dockAnchor, HomeExtras extras) {
         this.activity = activity;
@@ -165,6 +165,11 @@ final class NowPlayingCard implements MediaWatch.Listener {
             lp.topMargin = top;
             card.setLayoutParams(lp);
         }
+        if (!placed) {
+            // First real position (the dock has settled): only now may the card appear.
+            placed = true;
+            if (shown) reveal();
+        }
     }
 
     @Override
@@ -195,6 +200,18 @@ final class NowPlayingCard implements MediaWatch.Listener {
         tick.post(this::loop);
         if (shown) return;
         shown = true;
+        if (placed) reveal();
+        else retryPlace(0);
+    }
+
+    /** The dock may still be settling after Home starts: try again each 100 ms for up to 3 s. */
+    private void retryPlace(int tries) {
+        if (placed || !shown) return;
+        place();
+        if (!placed && tries < 30) card.postDelayed(() -> retryPlace(tries + 1), 100);
+    }
+
+    private void reveal() {
         card.setVisibility(View.VISIBLE);
         card.setTranslationY(px(8));
         card.animate().alpha(scrolledAway ? 0f : 1f).translationY(0).setDuration(280).setInterpolator(new DecelerateInterpolator(2f)).start();

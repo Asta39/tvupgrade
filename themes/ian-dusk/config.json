@@ -33,5 +33,6 @@
   "show_network_pill": false,
   "icon_only_inputs": true,
   "now_playing": true,
-  "control_center": true
+  "control_center": true,
+  "show_inputs_pill": false
 }
