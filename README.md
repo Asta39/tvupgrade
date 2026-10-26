@@ -16,7 +16,16 @@ Built on a TCL G10 (Google TV 12) with [Claude Code](https://claude.com/claude-c
 |---|---|
 | ![Forest rays](screenshots/home-1.jpg) | ![Misty pines](screenshots/home-2.jpg) |
 | ![Fog forest](screenshots/home-4.jpg) | ![Green lake](screenshots/home-5.jpg) |
-| ![Tea hills](screenshots/home-6.jpg) | ![All apps, after pressing Down](screenshots/all-apps.jpg) |
+| ![Tea hills](screenshots/home-6.jpg) | ![Flower sunset](screenshots/home-7.jpg) |
+| ![Dark fern](screenshots/home-8.jpg) | ![Fern canopy](screenshots/home-9.jpg) |
+
+All nine wallpapers, one press of **CH +** apart:
+
+![All nine wallpapers](screenshots/all-wallpapers.jpg)
+
+**All apps** (press Down):
+
+![All apps](screenshots/all-apps.jpg)
 
 **Before:** stock Google TV, with sponsored rows, promos and a profile wall.
 
@@ -25,14 +34,14 @@ Built on a TCL G10 (Google TV 12) with [Claude Code](https://claude.com/claude-c
 ## What's on screen
 
 - **Lock-screen clock.** A large, thin, centred clock that fades towards the bottom, with the date above it.
-- **Depth effect.** On five of the six wallpapers the mountain, trees or hills are cut out and drawn *in front of*
+- **Depth effect.** On six of the nine wallpapers the mountain, trees or hills are cut out and drawn *in front of*
   the clock, like the iPhone lock screen. The top of the digits always stays readable.
 - **Eight icons, nothing else.** Netflix, Bitchord, TizenTube, Crunchyroll, Shuffler, AniFam, Spotify and Apple TV,
   as full-bleed rounded squares along the bottom edge. The selected icon lifts slightly.
 - **All your other apps** wait below the dock. Press **Down** and they slide up while the clock fades out. Press
   **Up** and you're back.
 - **Two quiet buttons** in the top right: Inputs (HDMI 1–3, AV, Live TV) and Settings.
-- **4K wallpapers** that rotate every hour with a soft cross-fade.
+- **Nine 4K wallpapers** that rotate every hour with a soft cross-fade.
 
 ## Remote
 
@@ -72,8 +81,9 @@ The launcher in [`launcher/`](launcher/) is cleanyourtv's reference launcher (pl
 | `keep_watching` | A row of Continue watching cards with posters. Off in this theme, and the only part that uses the internet |
 | CH+/CH− | Step through the wallpapers on Home |
 
-The theme itself is [`themes/ian-dusk/`](themes/ian-dusk/): `config.json`, six 3840×2160 wallpapers, and their depth
-cut-outs.
+The theme itself is [`themes/ian-dusk/`](themes/ian-dusk/): `config.json`, nine 3840×2160 wallpapers, and six depth
+cut-outs. Forest rays and the two ferns have no cut-out on purpose: their busy foliage fills the frame, and
+cutting it out made the bottom of the digits look broken rather than layered.
 
 ### How the wallpapers were made
 
