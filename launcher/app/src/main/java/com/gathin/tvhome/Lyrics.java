@@ -49,6 +49,11 @@ final class Lyrics {
     private Lyrics() {
     }
 
+    /** Whether a lookup for this song has finished (found or truly missing), as opposed to failed. */
+    static boolean known(String key) {
+        return CACHE.containsKey(key);
+    }
+
     static String key(String artist, String title) {
         return artist + "\n" + title;
     }
@@ -62,34 +67,73 @@ final class Lyrics {
             return;
         }
         IO.execute(() -> {
-            List<Line> lines = new ArrayList<>();
+            List<Line> lines = null;
             try {
-                String q = "artist_name=" + enc(firstArtist(artist)) + "&track_name=" + enc(title)
-                        + (durationMs > 0 ? "&duration=" + Math.round(durationMs / 1000.0) : "");
-                String body = get("https://lrclib.net/api/get?" + q);
-                String synced = body != null ? new JSONObject(body).optString("syncedLyrics", "") : "";
-                if (synced.isEmpty()) {
-                    // No exact match: the best search hit that has synced lyrics.
-                    String found = get("https://lrclib.net/api/search?q=" + enc(firstArtist(artist) + " " + title));
-                    JSONArray arr = found != null ? new JSONArray(found) : new JSONArray();
-                    for (int i = 0; i < arr.length() && synced.isEmpty(); i++) {
-                        synced = arr.optJSONObject(i).optString("syncedLyrics", "");
-                    }
-                }
-                for (String row : synced.split("\n")) {
-                    Matcher m = LRC.matcher(row.trim());
-                    if (!m.matches()) continue;
-                    String frac = m.group(3) == null ? "0" : m.group(3);
-                    long ms = Long.parseLong(m.group(1)) * 60_000 + Long.parseLong(m.group(2)) * 1000
-                            + Math.round(Long.parseLong(frac) * Math.pow(10, 3 - frac.length()));
-                    lines.add(new Line(ms, m.group(4).trim()));
-                }
-            } catch (Exception offline) {
-                // Leave it empty; the face then shows the song without lyrics.
+                lines = lookup(firstArtist(artist), clean(title), durationMs);
+            } catch (java.io.IOException offline) {
+                // Network trouble or LRCLIB overloaded (503): don't remember it as "no lyrics"; the next track
+                // change or StandBy visit asks again.
+            } catch (Exception bad) {
+                lines = new ArrayList<>();
             }
-            CACHE.put(key, lines);
-            main.post(() -> cb.onLyrics(key, lines));
+            if (lines != null) CACHE.put(key, lines);
+            android.util.Log.i("Lyrics", firstArtist(artist) + " / " + clean(title) + " -> "
+                    + (lines == null ? "lookup failed" : lines.size() + " lines"));
+            List<Line> result = lines != null ? lines : new ArrayList<>();
+            main.post(() -> cb.onLyrics(key, result));
         });
+    }
+
+    /**
+     * Every LRCLIB entry for this title and artist, best first: synced lyrics whose length is within five seconds of
+     * the song, then any synced, then plain lyrics spread over the song. A free-text search when the fielded one
+     * finds nothing.
+     */
+    private static List<Line> lookup(String artist, String title, long durationMs) throws Exception {
+        JSONArray hits = searchArray("https://lrclib.net/api/search?track_name=" + enc(title) + "&artist_name=" + enc(artist));
+        if (hits.length() == 0) hits = searchArray("https://lrclib.net/api/search?q=" + enc(artist + " " + title));
+        long sec = Math.round(durationMs / 1000.0);
+        JSONObject near = null, anySynced = null, plain = null;
+        for (int i = 0; i < hits.length(); i++) {
+            JSONObject h = hits.optJSONObject(i);
+            if (h == null) continue;
+            boolean synced = !h.optString("syncedLyrics", "").isEmpty() && !"null".equals(h.optString("syncedLyrics"));
+            boolean close = sec <= 0 || Math.abs(h.optDouble("duration", 0) - sec) <= 5;
+            if (synced && close && near == null) near = h;
+            if (synced && anySynced == null) anySynced = h;
+            if (!synced && plain == null && !h.optString("plainLyrics", "").isEmpty() && !"null".equals(h.optString("plainLyrics"))) plain = h;
+        }
+        JSONObject pick = near != null ? near : anySynced;
+        List<Line> lines = new ArrayList<>();
+        if (pick != null) {
+            for (String row : pick.optString("syncedLyrics").split("\n")) {
+                Matcher m = LRC.matcher(row.trim());
+                if (!m.matches()) continue;
+                String frac = m.group(3) == null ? "0" : m.group(3);
+                long ms = Long.parseLong(m.group(1)) * 60_000 + Long.parseLong(m.group(2)) * 1000
+                        + Math.round(Long.parseLong(frac) * Math.pow(10, 3 - frac.length()));
+                lines.add(new Line(ms, m.group(4).trim()));
+            }
+        } else if (plain != null && durationMs > 0) {
+            // Untimed lyrics: spread evenly between 8% and 95% of the song. Approximate, but better than nothing.
+            List<String> rows = new ArrayList<>();
+            for (String row : plain.optString("plainLyrics").split("\n")) if (!row.trim().isEmpty()) rows.add(row.trim());
+            long start = durationMs * 8 / 100, span = durationMs * 87 / 100;
+            for (int i = 0; i < rows.size(); i++) lines.add(new Line(start + span * i / Math.max(1, rows.size()), rows.get(i)));
+        }
+        return lines;
+    }
+
+    private static JSONArray searchArray(String url) throws Exception {
+        String body = get(url);
+        return body == null ? new JSONArray() : new JSONArray(body);
+    }
+
+    /** "Lies (feat. Lana Del Rey)" and "Song - Remastered 2011" are stored as "Lies" and "Song". */
+    static String clean(String title) {
+        String t = title.replaceAll("(?i)\\s*[(\\[](feat\\.?|ft\\.?|with|featuring)[^)\\]]*[)\\]]", "");
+        t = t.replaceAll("(?i)\\s+-\\s+(remaster(ed)?|live|radio edit|single version|mono|stereo).*$", "");
+        return t.trim();
     }
 
     /** The line playing at this position, or -1 before the first. */
@@ -112,13 +156,35 @@ final class Lyrics {
         return URLEncoder.encode(s, "UTF-8");
     }
 
+    /** GET with up to three tries: LRCLIB answers 503 now and then when it is busy. */
     private static String get(String url) throws java.io.IOException {
+        java.io.IOException last = null;
+        for (int attempt = 0; attempt < 3; attempt++) {
+            try {
+                String body = getOnce(url);
+                if (body != null) return body;
+                return null;   // 404 and the like: a real "not found"
+            } catch (java.io.IOException busy) {
+                last = busy;
+                try {
+                    Thread.sleep(800L * (attempt + 1));
+                } catch (InterruptedException e) {
+                    break;
+                }
+            }
+        }
+        throw last != null ? last : new java.io.IOException("unreachable");
+    }
+
+    private static String getOnce(String url) throws java.io.IOException {
         HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
         c.setConnectTimeout(6000);
         c.setReadTimeout(8000);
         c.setRequestProperty("User-Agent", "tvupgrade-launcher (github.com/Asta39/tvupgrade)");
         try {
-            if (c.getResponseCode() != 200) return null;
+            int code = c.getResponseCode();
+            if (code >= 500) throw new java.io.IOException("LRCLIB " + code);
+            if (code != 200) return null;
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             try (InputStream in = c.getInputStream()) {
                 byte[] b = new byte[8192];

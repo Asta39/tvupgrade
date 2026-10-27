@@ -79,8 +79,10 @@ take the cover's most vivid colour.
 ![Now Playing with lyrics](screenshots/standby-lyrics.jpg)
 
 Lyrics come from [LRCLIB](https://lrclib.net), a free community lyrics database, looked up by the song's title,
-artist and length: music apps don't share their own lyrics with other apps. Songs LRCLIB doesn't have show
-"No lyrics for this song".
+artist and length: music apps don't share their own lyrics with other apps. It searches by title and lead artist ("(feat. …)"
+and "- Remastered" are ignored), prefers synced lyrics within five seconds of the song's length, retries when
+LRCLIB is busy, and spreads plain (untimed) lyrics over the song when that's all there is. Songs LRCLIB doesn't
+have show "No lyrics for this song". The remote's play/pause and next keys work while StandBy is up.
 
 **Before:** stock Google TV, with sponsored rows, promos and a profile wall.
 

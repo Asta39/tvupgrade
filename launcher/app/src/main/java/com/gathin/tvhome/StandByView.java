@@ -327,11 +327,12 @@ final class StandByView extends FrameLayout {
             LinearLayout lyr = new LinearLayout(getContext());
             lyr.setOrientation(LinearLayout.VERTICAL);
             for (int i = 0; i < rows.length; i++) {
-                rows[i] = text("", i == 1 ? 34 : 24, R.string.font_medium);
+                rows[i] = text("", i == 1 ? 30 : 21, R.string.font_medium);
                 rows[i].setGravity(Gravity.START);
-                rows[i].setMaxLines(2);
+                rows[i].setMaxLines(i == 1 ? 2 : 1);
+                rows[i].setEllipsize(android.text.TextUtils.TruncateAt.END);
                 LinearLayout.LayoutParams rl = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-                rl.topMargin = px(i == 0 ? 0 : 14);
+                rl.topMargin = px(i == 0 ? 0 : 10);
                 lyr.addView(rows[i], rl);
             }
             idle = text("No lyrics for this song", 24, R.string.font_medium);
@@ -448,15 +449,23 @@ final class StandByView extends FrameLayout {
                 key = k;
                 lines = java.util.Collections.emptyList();
                 shownLine = -2;
-                Lyrics.load(t.artist, t.title, t.duration, (kk, l) -> {
-                    if (kk.equals(key)) {
-                        lines = l;
-                        shownLine = -2;
-                        update();
-                    }
-                });
+                fetch(t);
             }
             update();
+        }
+
+        /** Look the song up; when the lookup itself failed (offline, LRCLIB busy), try again in 20 seconds. */
+        private void fetch(MediaWatch.Track t) {
+            String k = Lyrics.key(t.artist, t.title);
+            Lyrics.load(t.artist, t.title, t.duration, (kk, l) -> {
+                if (!kk.equals(key)) return;
+                lines = l;
+                shownLine = -2;
+                update();
+                if (l.isEmpty() && !Lyrics.known(kk)) {
+                    root.postDelayed(() -> { if (k.equals(key) && track != null) fetch(track); }, 20_000);
+                }
+            });
         }
 
         private void update() {
@@ -477,7 +486,8 @@ final class StandByView extends FrameLayout {
             for (int r = 0; r < rows.length; r++) {
                 int li = i - 1 + r;
                 String s = li >= 0 && li < lines.size() ? lines.get(li).text : (r == 1 && i < 0 ? "♪" : "");
-                rows[r].setText(s);
+                // A blank line in the timing file is an instrumental break: ♪ while it lasts.
+                rows[r].setText(r == 1 && s.isEmpty() ? "♪" : s);
                 rows[r].setTextColor(r == 1 ? accent : Color.WHITE);
                 rows[r].setAlpha(r == 0 ? 0.3f : r == 1 ? 1f : r == 2 ? 0.55f : r == 3 ? 0.35f : 0.2f);
             }
