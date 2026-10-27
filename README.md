@@ -68,8 +68,11 @@ night mode.
 
 ![StandBy faces](screenshots/standby.jpg)
 
-Three more faces after iOS StandBy: **Solar** (the sky's colour for the hour with the sun on its arc), **Float**
-(huge numerals, one colour each), and **Now Playing** with time-synced lyrics over a glow in the artwork's colour.
+Three more faces after iOS StandBy: **Solar** (the sky's colour for the hour, with the current weather symbol
+from the home screen on the sun's arc), **Float** (huge numerals, one colour each), and **Now Playing**, laid out
+like Apple Music: blurred artwork behind, the song and the time on one line, big artwork beside five lines of
+time-synced lyrics, a progress bar and this week's calendar. The clock, the current lyric, the progress and today
+take the cover's most vivid colour.
 
 ![Solar and Float](screenshots/standby-solar-float.jpg)
 

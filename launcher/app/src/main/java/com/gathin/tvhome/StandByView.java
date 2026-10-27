@@ -85,6 +85,13 @@ final class StandByView extends FrameLayout {
         View next = f == 0 ? digits() : f == 1 ? analogFace(px(220)) : f == 2 ? widgets()
                 : f == 3 ? solar() : f == 4 ? floatFace() : nowPlaying();
         if (animate) {
+            // Only the face on screen fades out; any still fading from a quick earlier press goes at once, so two
+            // faces never stack.
+            while (stage.getChildCount() > 1) {
+                View gone = stage.getChildAt(0);
+                gone.animate().cancel();
+                stage.removeView(gone);
+            }
             View old = stage.getChildCount() > 0 ? stage.getChildAt(0) : null;
             next.setAlpha(0f);
             stage.addView(next);
@@ -159,13 +166,34 @@ final class StandByView extends FrameLayout {
             boolean sun = hour >= 6 && hour < 18 && !night;
             float x = w * (0.1f + 0.8f * frac);
             float y = h * 0.62f - (float) Math.sin(Math.PI * frac) * h * 0.38f;
-            float r = Math.min(w, h) * 0.06f;
-            int core = night ? 0xFFB3261E : sun ? 0xFFFFE08A : 0xFFE5E5EA;
-            glow.setShader(new android.graphics.RadialGradient(x, y, r * 5, (core & 0x00FFFFFF) | 0x66000000, 0,
+            float r = Math.min(w, h) * 0.11f;
+            // The same symbol as the home screen's weather pill, for the current reading: sun, cloud, rain, storm,
+            // fog, or the moon at night.
+            int code = 0;
+            boolean isDay = sun;
+            try {
+                String json = getContext().getSharedPreferences("weather", Context.MODE_PRIVATE).getString("json", null);
+                if (json != null) {
+                    org.json.JSONObject cur = new org.json.JSONObject(json).optJSONObject("current");
+                    if (cur != null) {
+                        code = cur.optInt("weather_code");
+                        isDay = cur.optInt("is_day", sun ? 1 : 0) == 1;
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+            int iconRes = Weather.icon(code, isDay);
+            int core = night ? 0xFFB3261E : iconRes == R.drawable.ic_wx_sun ? 0xFFFFD60A : 0xFFE5E5EA;
+            glow.setShader(new android.graphics.RadialGradient(x, y, r * 3.2f, (core & 0x00FFFFFF) | 0x59000000, 0,
                     android.graphics.Shader.TileMode.CLAMP));
-            c.drawCircle(x, y, r * 5, glow);
-            body.setColor(core);
-            c.drawCircle(x, y, r, body);
+            c.drawCircle(x, y, r * 3.2f, glow);
+            android.graphics.drawable.Drawable icon = getContext().getDrawable(iconRes);
+            if (icon != null) {
+                icon = icon.mutate();
+                if (night) icon.setTint(0xFFB3261E);
+                icon.setBounds((int) (x - r), (int) (y - r), (int) (x + r), (int) (y + r));
+                icon.draw(c);
+            }
             postDelayed(minute, 60_000);
         }
 
@@ -187,9 +215,11 @@ final class StandByView extends FrameLayout {
     private View floatFace() {
         TextView t = new TextView(getContext());
         t.setTypeface(UiFont.get(getContext(), R.string.font_medium));
-        t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 300);
-        t.setLetterSpacing(-0.1f);
-        t.setIncludeFontPadding(false);
+        t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 280);
+        // Tight but not negative enough to push the outer digits past the view's edge, with room on every side.
+        t.setLetterSpacing(-0.05f);
+        t.setIncludeFontPadding(true);
+        t.setPadding(px(48), px(24), px(48), px(24));
         t.setGravity(Gravity.CENTER);
         Runnable paint = new Runnable() {
             @Override
@@ -228,15 +258,18 @@ final class StandByView extends FrameLayout {
      */
     final class NowPlayingFace implements MediaWatch.Listener {
         final FrameLayout root = new FrameLayout(getContext());
-        private final View tint = new View(getContext());
+        private final android.widget.ImageView backdrop = new android.widget.ImageView(getContext());
         private final android.widget.ImageView art = new android.widget.ImageView(getContext());
-        private final TextView title, artist, prev, cur, next, idle;
+        private final TextView title, artist, elapsed, remaining, idle, nothing;
+        private final TextClock time;
+        private final TextView[] rows = new TextView[5];
         private final View fill;
-        private final LinearLayout right;
+        private final GradientDrawable fillBg = new GradientDrawable();
+        private final LinearLayout body, week;
         private MediaWatch.Track track;
         private List<Lyrics.Line> lines = java.util.Collections.emptyList();
         private String key = "";
-        private int shownLine = -2;
+        private int shownLine = -2, accent = Color.WHITE;
         private final Runnable tick = new Runnable() {
             @Override
             public void run() {
@@ -246,87 +279,102 @@ final class StandByView extends FrameLayout {
         };
 
         NowPlayingFace() {
-            root.addView(tint, new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-            LinearLayout row = new LinearLayout(getContext());
-            row.setGravity(Gravity.CENTER_VERTICAL);
-            row.setPadding(px(72), 0, px(72), 0);
+            // The artwork, a few pixels across and stretched, softens like Music's blurred backdrop at no cost.
+            backdrop.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
+            root.addView(backdrop, new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+            View scrim = new View(getContext());
+            scrim.setBackground(new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, new int[]{0x99000000, 0xB3000000}));
+            root.addView(scrim, new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
-            LinearLayout left = new LinearLayout(getContext());
-            left.setOrientation(LinearLayout.VERTICAL);
-            TextClock time = clock(null, 120, R.string.font_light);
-            time.setGravity(Gravity.START);
-            left.addView(time);
-            TextClock date = clock("EEEE d MMMM", 20, R.string.font_medium);
-            date.setGravity(Gravity.START);
-            date.setAlpha(0.7f);
-            left.addView(date);
-            row.addView(left, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+            body = new LinearLayout(getContext());
+            body.setOrientation(LinearLayout.VERTICAL);
+            body.setPadding(px(64), px(40), px(64), px(36));
+            root.addView(body, new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
-            right = new LinearLayout(getContext());
-            right.setOrientation(LinearLayout.VERTICAL);
+            // Top: the song on the left and the time on the right, on one line.
             LinearLayout head = new LinearLayout(getContext());
             head.setGravity(Gravity.CENTER_VERTICAL);
-            art.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
-            art.setOutlineProvider(new android.view.ViewOutlineProvider() {
-                @Override
-                public void getOutline(View v, android.graphics.Outline o) {
-                    o.setRoundRect(0, 0, v.getWidth(), v.getHeight(), 12 * dp);
-                }
-            });
-            art.setClipToOutline(true);
-            head.addView(art, new LinearLayout.LayoutParams(px(96), px(96)));
             LinearLayout names = new LinearLayout(getContext());
             names.setOrientation(LinearLayout.VERTICAL);
-            title = text("", 22, R.string.font_medium);
+            title = text("", 26, R.string.font_medium);
             title.setGravity(Gravity.START);
             title.setSingleLine(true);
             title.setEllipsize(android.text.TextUtils.TruncateAt.END);
-            artist = text("", 16, R.string.font_body);
+            artist = text("", 18, R.string.font_body);
             artist.setGravity(Gravity.START);
             artist.setAlpha(0.7f);
             artist.setSingleLine(true);
             names.addView(title);
             names.addView(artist);
+            head.addView(names, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+            time = clock(null, 56, R.string.font_light);
+            head.addView(time);
+            body.addView(head);
+
+            // Middle: big artwork, and the lyrics beside it.
+            LinearLayout mid = new LinearLayout(getContext());
+            mid.setGravity(Gravity.CENTER_VERTICAL);
+            art.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
+            art.setOutlineProvider(new android.view.ViewOutlineProvider() {
+                @Override
+                public void getOutline(View v, android.graphics.Outline o) {
+                    o.setRoundRect(0, 0, v.getWidth(), v.getHeight(), 14 * dp);
+                }
+            });
+            art.setClipToOutline(true);
+            art.setElevation(px(16));
+            mid.addView(art, new LinearLayout.LayoutParams(px(250), px(250)));
+            LinearLayout lyr = new LinearLayout(getContext());
+            lyr.setOrientation(LinearLayout.VERTICAL);
+            for (int i = 0; i < rows.length; i++) {
+                rows[i] = text("", i == 1 ? 34 : 24, R.string.font_medium);
+                rows[i].setGravity(Gravity.START);
+                rows[i].setMaxLines(2);
+                LinearLayout.LayoutParams rl = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                rl.topMargin = px(i == 0 ? 0 : 14);
+                lyr.addView(rows[i], rl);
+            }
+            idle = text("No lyrics for this song", 24, R.string.font_medium);
+            idle.setGravity(Gravity.START);
+            idle.setAlpha(0.5f);
+            lyr.addView(idle);
+            LinearLayout.LayoutParams ll = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+            ll.leftMargin = px(48);
+            mid.addView(lyr, ll);
+            body.addView(mid, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+
+            // Bottom: progress with elapsed and remaining time, then this week.
+            LinearLayout prog = new LinearLayout(getContext());
+            prog.setGravity(Gravity.CENTER_VERTICAL);
+            elapsed = text("", 14, R.string.font_medium);
+            elapsed.setAlpha(0.7f);
+            prog.addView(elapsed, new LinearLayout.LayoutParams(px(52), ViewGroup.LayoutParams.WRAP_CONTENT));
             FrameLayout bar = new FrameLayout(getContext());
-            GradientDrawable track = new GradientDrawable();
-            track.setColor(0x33FFFFFF);
-            track.setCornerRadius(px(2));
-            bar.setBackground(track);
+            GradientDrawable trackBg = new GradientDrawable();
+            trackBg.setColor(0x33FFFFFF);
+            trackBg.setCornerRadius(px(3));
+            bar.setBackground(trackBg);
             fill = new View(getContext());
-            GradientDrawable fillBg = new GradientDrawable();
-            fillBg.setColor(night() ? NIGHT_RED : Color.WHITE);
-            fillBg.setCornerRadius(px(2));
+            fillBg.setCornerRadius(px(3));
             fill.setBackground(fillBg);
             fill.setPivotX(0);
-            bar.addView(fill, new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, px(4)));
-            LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, px(4));
-            bl.topMargin = px(12);
-            names.addView(bar, bl);
-            LinearLayout.LayoutParams nl = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-            nl.leftMargin = px(18);
-            head.addView(names, nl);
-            right.addView(head);
+            bar.addView(fill, new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, px(6)));
+            LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(0, px(6), 1f);
+            bl.setMargins(px(10), 0, px(10), 0);
+            prog.addView(bar, bl);
+            remaining = text("", 14, R.string.font_medium);
+            remaining.setAlpha(0.7f);
+            prog.addView(remaining, new LinearLayout.LayoutParams(px(52), ViewGroup.LayoutParams.WRAP_CONTENT));
+            body.addView(prog);
+            week = new LinearLayout(getContext());
+            week.setGravity(Gravity.CENTER);
+            LinearLayout.LayoutParams wl = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            wl.topMargin = px(18);
+            body.addView(week, wl);
 
-            prev = lyric(20, 0.35f);
-            cur = lyric(30, 1f);
-            next = lyric(20, 0.35f);
-            idle = lyric(18, 0.5f);
-            idle.setText("No lyrics for this song");
-            LinearLayout.LayoutParams ll = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-            ll.topMargin = px(14);
-            right.addView(prev, lp(28));
-            right.addView(cur, ll);
-            right.addView(next, ll);
-            right.addView(idle, lp(28));
-            row.addView(right, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.25f));
-            root.addView(row, new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-
-            TextView nothing = text("Nothing playing", 22, R.string.font_medium);
+            nothing = text("Nothing playing", 26, R.string.font_medium);
             nothing.setAlpha(0.6f);
-            nothing.setTag("nothing");
-            LayoutParams np = new LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER_VERTICAL | Gravity.END);
-            np.rightMargin = px(160);
-            root.addView(nothing, np);
+            root.addView(nothing, new LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER));
             root.addOnAttachStateChangeListener(new OnAttachStateChangeListener() {
                 @Override public void onViewAttachedToWindow(View v) { root.post(tick); }
                 @Override public void onViewDetachedFromWindow(View v) {
@@ -334,35 +382,67 @@ final class StandByView extends FrameLayout {
                     if (media != null) media.removeListener(NowPlayingFace.this);
                 }
             });
+            paintAccent(Color.WHITE);
             onMedia(null);
         }
 
-        private LinearLayout.LayoutParams lp(int topDp) {
-            LinearLayout.LayoutParams l = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-            l.topMargin = px(topDp);
-            return l;
+        /** This week, Monday to Sunday, today in a pill of the artwork's colour. */
+        private void buildWeek() {
+            week.removeAllViews();
+            LocalDate today = LocalDate.now();
+            LocalDate monday = today.minusDays(today.getDayOfWeek().getValue() - 1);
+            for (int i = 0; i < 7; i++) {
+                LocalDate d = monday.plusDays(i);
+                boolean now = d.equals(today);
+                LinearLayout cell = new LinearLayout(getContext());
+                cell.setOrientation(LinearLayout.VERTICAL);
+                cell.setGravity(Gravity.CENTER);
+                cell.setPadding(px(14), px(6), px(14), px(8));
+                if (now) {
+                    GradientDrawable pill = new GradientDrawable();
+                    pill.setColor(accent);
+                    pill.setCornerRadius(px(14));
+                    cell.setBackground(pill);
+                }
+                TextView name = text(d.getDayOfWeek().getDisplayName(TextStyle.SHORT, Locale.getDefault()).toUpperCase(), 12, R.string.font_medium);
+                name.setTextColor(now ? 0xFF1C1C1E : 0x99FFFFFF);
+                TextView num = text(String.valueOf(d.getDayOfMonth()), 20, R.string.font_medium);
+                num.setTextColor(now ? 0xFF1C1C1E : Color.WHITE);
+                cell.addView(name);
+                cell.addView(num);
+                LinearLayout.LayoutParams cl = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                cl.setMargins(px(6), 0, px(6), 0);
+                week.addView(cell, cl);
+            }
         }
 
-        private TextView lyric(int sp, float alpha) {
-            TextView t = text("", sp, R.string.font_medium);
-            t.setGravity(Gravity.START);
-            t.setAlpha(alpha);
-            t.setMaxLines(2);
-            return t;
+        private void paintAccent(int c) {
+            accent = night() ? NIGHT_RED : c;
+            time.setTextColor(accent);
+            fillBg.setColor(accent);
+            buildWeek();
+            shownLine = -2;
         }
 
         @Override
         public void onMedia(MediaWatch.Track t) {
             track = t;
-            root.findViewWithTag("nothing").setVisibility(t == null ? View.VISIBLE : View.GONE);
-            right.setVisibility(t == null ? View.INVISIBLE : View.VISIBLE);
-            if (t == null) return;
+            nothing.setVisibility(t == null ? View.VISIBLE : View.GONE);
+            body.setVisibility(t == null ? View.INVISIBLE : View.VISIBLE);
+            if (t == null) {
+                backdrop.setImageDrawable(null);
+                return;
+            }
             title.setText(t.title);
             artist.setText(t.artist);
-            if (t.art != null) art.setImageBitmap(t.art);
-            else art.setImageResource(R.drawable.ic_cc_music);
-            int c = night() ? 0xFF3A0A08 : averageColor(t.art);
-            tint.setBackground(new GradientDrawable(GradientDrawable.Orientation.TR_BL, new int[]{(c & 0x00FFFFFF) | 0x99000000, 0xFF000000}));
+            if (t.art != null) {
+                art.setImageBitmap(t.art);
+                backdrop.setImageBitmap(soften(t.art));
+                paintAccent(vivid(t.art));
+            } else {
+                art.setImageResource(R.drawable.ic_cc_music);
+                paintAccent(Color.WHITE);
+            }
             String k = Lyrics.key(t.artist, t.title);
             if (!k.equals(key)) {
                 key = k;
@@ -384,39 +464,75 @@ final class StandByView extends FrameLayout {
             if (t == null) return;
             long pos = t.positionNow();
             fill.setScaleX(t.duration > 0 ? Math.min(1f, pos / (float) t.duration) : 0f);
+            elapsed.setText(mmss(pos));
+            remaining.setText(t.duration > 0 ? "-" + mmss(Math.max(0, t.duration - pos)) : "");
             boolean has = !lines.isEmpty();
             idle.setVisibility(has ? View.GONE : View.VISIBLE);
-            prev.setVisibility(has ? View.VISIBLE : View.GONE);
-            cur.setVisibility(has ? View.VISIBLE : View.GONE);
-            next.setVisibility(has ? View.VISIBLE : View.GONE);
+            for (TextView r : rows) r.setVisibility(has ? View.VISIBLE : View.GONE);
             if (!has) return;
             int i = Lyrics.index(lines, pos);
             if (i == shownLine) return;
             shownLine = i;
-            prev.setText(i > 0 ? lines.get(i - 1).text : "");
-            cur.setText(i >= 0 ? lines.get(i).text : "♪");
-            next.setText(i + 1 < lines.size() ? lines.get(i + 1).text : "");
-            // The new line rises into place, as lyrics scroll in Music.
-            cur.setTranslationY(px(14));
-            cur.setAlpha(0.4f);
-            cur.animate().translationY(0).alpha(1f).setDuration(320).start();
+            // One line sung, the current one in the artwork's colour, three still to come fading out.
+            for (int r = 0; r < rows.length; r++) {
+                int li = i - 1 + r;
+                String s = li >= 0 && li < lines.size() ? lines.get(li).text : (r == 1 && i < 0 ? "♪" : "");
+                rows[r].setText(s);
+                rows[r].setTextColor(r == 1 ? accent : Color.WHITE);
+                rows[r].setAlpha(r == 0 ? 0.3f : r == 1 ? 1f : r == 2 ? 0.55f : r == 3 ? 0.35f : 0.2f);
+            }
+            for (TextView r : rows) {
+                r.setTranslationY(px(16));
+                r.animate().translationY(0).setDuration(320).start();
+            }
+        }
+
+        private String mmss(long ms) {
+            long s = ms / 1000;
+            return (s / 60) + ":" + String.format(Locale.getDefault(), "%02d", s % 60);
         }
     }
 
-    /** The artwork's overall colour, from a 1-pixel scale; a neutral grey without art. */
-    private static int averageColor(android.graphics.Bitmap b) {
-        if (b == null || b.isRecycled()) return 0xFF3A3A3C;
+    private static android.graphics.Bitmap software(android.graphics.Bitmap b) {
+        return b.getConfig() == android.graphics.Bitmap.Config.HARDWARE ? b.copy(android.graphics.Bitmap.Config.ARGB_8888, false) : b;
+    }
+
+    /** A few pixels across: stretched to the screen it reads as a heavy blur. */
+    private static android.graphics.Bitmap soften(android.graphics.Bitmap b) {
         try {
-            android.graphics.Bitmap one = android.graphics.Bitmap.createScaledBitmap(
-                    b.getConfig() == android.graphics.Bitmap.Config.HARDWARE ? b.copy(android.graphics.Bitmap.Config.ARGB_8888, false) : b, 1, 1, true);
-            int c = one.getPixel(0, 0);
+            android.graphics.Bitmap s = software(b);
+            android.graphics.Bitmap tiny = android.graphics.Bitmap.createScaledBitmap(s, 12, 12, true);
+            return android.graphics.Bitmap.createScaledBitmap(tiny, 48, 48, true);
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    /**
+     * The artwork's most vivid colour, lifted until it reads on the dark backdrop: Music tints its text the same
+     * way. Greys are skipped; an all-grey cover gives white.
+     */
+    private static int vivid(android.graphics.Bitmap b) {
+        try {
+            android.graphics.Bitmap s = android.graphics.Bitmap.createScaledBitmap(software(b), 24, 24, true);
+            float best = 0;
+            int pick = Color.WHITE;
             float[] hsv = new float[3];
-            Color.colorToHSV(c, hsv);
-            hsv[1] = Math.min(1f, hsv[1] * 1.4f);
-            hsv[2] = Math.max(0.45f, hsv[2]);
+            for (int y = 0; y < 24; y++) for (int x = 0; x < 24; x++) {
+                Color.colorToHSV(s.getPixel(x, y), hsv);
+                float score = hsv[1] * (0.3f + hsv[2]);
+                if (hsv[2] > 0.25f && score > best) {
+                    best = score;
+                    pick = s.getPixel(x, y);
+                }
+            }
+            if (best < 0.2f) return Color.WHITE;
+            Color.colorToHSV(pick, hsv);
+            hsv[1] = Math.min(hsv[1], 0.75f);
+            hsv[2] = Math.max(hsv[2], 0.92f);
             return Color.HSVToColor(hsv);
         } catch (RuntimeException e) {
-            return 0xFF3A3A3C;
+            return Color.WHITE;
         }
     }
 
