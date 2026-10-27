@@ -7,7 +7,8 @@ import android.view.WindowManager;
 
 /**
  * StandBy on demand, from Control Center (this fork). Left/Right change the face, which is remembered; volume and the
- * remote's media keys (play, pause, next) work as usual; any other button returns to Home.
+ * remote's media keys (play, pause, next) work as usual. On Now Playing, OK plays or pauses and Down reaches the
+ * previous / play / next buttons (Up leaves them). Any other button returns to Home.
  */
 public class StandByActivity extends Activity {
     private StandByView view;
@@ -46,6 +47,7 @@ public class StandByActivity extends Activity {
             return super.dispatchKeyEvent(e);
         }
         if (e.getAction() != KeyEvent.ACTION_DOWN) return true;
+        if (view.onFaceKey(k)) return true;
         if (k == KeyEvent.KEYCODE_DPAD_LEFT || k == KeyEvent.KEYCODE_DPAD_RIGHT) {
             view.step(k == KeyEvent.KEYCODE_DPAD_RIGHT ? 1 : -1);
             getSharedPreferences("standby", MODE_PRIVATE).edit().putInt("face", view.face()).apply();
