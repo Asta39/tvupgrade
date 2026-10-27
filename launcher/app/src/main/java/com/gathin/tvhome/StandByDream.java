@@ -49,6 +49,13 @@ public class StandByDream extends DreamService implements MediaWatch.Listener {
         }
         if (e.getAction() != android.view.KeyEvent.ACTION_DOWN) return true;
         if (view.onFaceKey(k)) return true;
+        // CH+ / CH- change the face from anywhere, the lyrics face included, as they change the wallpaper on Home.
+        if (k == android.view.KeyEvent.KEYCODE_CHANNEL_UP || k == android.view.KeyEvent.KEYCODE_CHANNEL_DOWN
+                || k == android.view.KeyEvent.KEYCODE_PAGE_UP || k == android.view.KeyEvent.KEYCODE_PAGE_DOWN) {
+            view.step(k == android.view.KeyEvent.KEYCODE_CHANNEL_UP || k == android.view.KeyEvent.KEYCODE_PAGE_UP ? 1 : -1);
+            getSharedPreferences("standby", MODE_PRIVATE).edit().putInt("face", view.face()).apply();
+            return true;
+        }
         if (k == android.view.KeyEvent.KEYCODE_DPAD_LEFT || k == android.view.KeyEvent.KEYCODE_DPAD_RIGHT) {
             view.step(k == android.view.KeyEvent.KEYCODE_DPAD_RIGHT ? 1 : -1);
             return true;

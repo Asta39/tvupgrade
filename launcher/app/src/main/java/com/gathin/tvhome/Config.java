@@ -407,6 +407,8 @@ final class Config {
     /** This fork: the weather pill; empty city turns it off. */
     static String weatherCity = "";
     static double weatherLat, weatherLon;
+    /** This fork: nudge StandBy lyrics, ms (positive = lyrics later); added to the measured output delay. */
+    static long lyricsOffsetMs;
 
     static Config load(Context ctx) {
         iconFill = heroClock = keepWatching = nowPlaying = controlCenter = false;
@@ -580,6 +582,7 @@ final class Config {
             weatherCity = json.optString("weather_city", "").trim();
             weatherLat = json.optDouble("weather_lat", 0);
             weatherLon = json.optDouble("weather_lon", 0);
+            lyricsOffsetMs = json.optLong("lyrics_offset_ms", 0);
             background = color(json, "background_color", background);
             skyIntensity = integer(json, "sky_intensity", skyIntensity, 0, 100);
             settingsKeycodes = intArray(json, "settings_key_keycodes", settingsKeycodes);

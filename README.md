@@ -84,10 +84,13 @@ and "- Remastered" are ignored), prefers synced lyrics within five seconds of th
 LRCLIB is busy, and spreads plain (untimed) lyrics over the song when that's all there is. Songs LRCLIB doesn't
 have show "No lyrics for this song". The remote's play/pause and next keys work while StandBy is up.
 
-The lyrics scroll like Apple Music's: the whole song in one column that glides to each new line, the current line
-lighting up word by word in the cover's colour (spread over the line, since LRCLIB has line times, not word
-times), and three breathing dots during instrumental breaks. On this face OK plays or pauses, and Down reaches
-the previous / play / next buttons under the artwork (Left/Right between them, Up to leave).
+The lyrics scroll like Apple Music's: the whole song in one column that glides to each new line, and the current
+line lit by a soft-edged sweep in the cover's colour, drawn every frame without re-laying out the text (LRCLIB has
+line times, not word times, so the sweep spans each line). Timing allows for the speakers' delay (about 0.2 s over
+Bluetooth) and for releases of different length; nudge it with `"lyrics_offset_ms"` in the theme (positive = later).
+Three breathing dots fill instrumental breaks. On this face OK plays or pauses, Down reaches the bare-glyph
+previous / play / next buttons under the artwork (Left/Right between them, Up to leave), and CH+/CH- change the
+StandBy face from any face, as they change the wallpaper on Home.
 
 **StandBy is the screensaver.** After 10 minutes idle the TV shows StandBy instead of Google's ambient
 screensaver, on Now Playing with lyrics if music is playing (and it switches there if music starts later). While

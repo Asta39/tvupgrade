@@ -283,17 +283,26 @@ final class StandByView extends FrameLayout {
         private android.widget.ImageView playGlyph;
         private MediaWatch.Track track;
         private List<Lyrics.Line> lines = java.util.Collections.emptyList();
-        private final List<TextView> lineViews = new java.util.ArrayList<>();
+        private final List<LyricLine> lineViews = new java.util.ArrayList<>();
+        private long latencyMs;
         private String key = "";
         private int current = -2, accent = Color.WHITE;
         private android.animation.ValueAnimator breathing;
         private android.animation.ObjectAnimator scrollAnim;
-        /** Progress and the word fill, about 20 times a second; nothing re-lays out, so there is no stutter. */
+        /** Progress bar and times, four times a second. */
         private final Runnable tick = new Runnable() {
             @Override
             public void run() {
                 update();
-                root.postDelayed(this, 50);
+                root.postDelayed(this, 250);
+            }
+        };
+        /** The sweep and line changes on the display's own clock, every frame, while a song plays. */
+        private final Runnable frame = new Runnable() {
+            @Override
+            public void run() {
+                lyricsFrame();
+                if (root.isAttachedToWindow()) root.postOnAnimation(this);
             }
         };
 
@@ -332,6 +341,9 @@ final class StandByView extends FrameLayout {
             // Middle: artwork with the transport under it, and the lyrics beside them.
             LinearLayout mid = new LinearLayout(getContext());
             mid.setGravity(Gravity.CENTER_VERTICAL);
+            // The focused button's platter grows past its row: nothing up the tree may cut it.
+            mid.setClipChildren(false);
+            body.setClipChildren(false);
             LinearLayout leftCol = new LinearLayout(getContext());
             leftCol.setOrientation(LinearLayout.VERTICAL);
             leftCol.setGravity(Gravity.CENTER_HORIZONTAL);
@@ -350,15 +362,16 @@ final class StandByView extends FrameLayout {
             transport.setGravity(Gravity.CENTER);
             transport.setClipChildren(false);
             transport.setPadding(0, px(8), 0, px(4));
+            transport.setClipToPadding(false);
             // Locked until Down, so nothing is highlighted when the face appears.
             transport.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
-            transport.addView(button(R.drawable.ic_cc_prev, 44, v -> MediaWatch.previous(track)));
-            View play = button(R.drawable.ic_cc_pause, 54, v -> MediaWatch.playPause(track));
+            transport.addView(button(R.drawable.ic_cc_prev, 52, v -> MediaWatch.previous(track)));
+            View play = button(R.drawable.ic_cc_pause, 64, v -> MediaWatch.playPause(track));
             playGlyph = play.findViewWithTag("icon");
-            LinearLayout.LayoutParams pl = new LinearLayout.LayoutParams(px(54), px(54));
-            pl.setMargins(px(22), 0, px(22), 0);
+            LinearLayout.LayoutParams pl = new LinearLayout.LayoutParams(px(64), px(64));
+            pl.setMargins(px(18), 0, px(18), 0);
             transport.addView(play, pl);
-            transport.addView(button(R.drawable.ic_cc_next, 44, v -> MediaWatch.next(track)));
+            transport.addView(button(R.drawable.ic_cc_next, 52, v -> MediaWatch.next(track)));
             LinearLayout.LayoutParams tl = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
             tl.topMargin = px(14);
             leftCol.addView(transport, tl);
@@ -386,7 +399,7 @@ final class StandByView extends FrameLayout {
             breath.setGravity(Gravity.START);
             breath.setPivotX(0);
             breath.setVisibility(View.GONE);
-            viewport.addView(breath, new LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.START | Gravity.CENTER_VERTICAL));
+            viewport.addView(breath, new LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.START | Gravity.TOP));
             idle = text("No lyrics for this song", 24, R.string.font_medium);
             idle.setGravity(Gravity.START);
             idle.setAlpha(0.5f);
@@ -432,9 +445,14 @@ final class StandByView extends FrameLayout {
             root.addView(nothing, new LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER));
             root.setFocusable(true);
             root.addOnAttachStateChangeListener(new OnAttachStateChangeListener() {
-                @Override public void onViewAttachedToWindow(View v) { root.post(tick); root.requestFocus(); }
+                @Override public void onViewAttachedToWindow(View v) {
+                    root.post(tick);
+                    root.postOnAnimation(frame);
+                    root.requestFocus();
+                }
                 @Override public void onViewDetachedFromWindow(View v) {
                     root.removeCallbacks(tick);
+                    root.removeCallbacks(frame);
                     if (breathing != null) breathing.cancel();
                     if (media != null) media.removeListener(NowPlayingFace.this);
                 }
@@ -443,26 +461,29 @@ final class StandByView extends FrameLayout {
             onMedia(null);
         }
 
-        /** A round transport button that whitens with focus, as in Control Center. */
+        /**
+         * Music's transport: bare glyphs, no circles, the play/pause glyph the largest. On TV the focused one sits on
+         * a white platter with a dark glyph and lifts slightly, as tvOS focus does.
+         */
         private View button(int icon, int sizeDp, View.OnClickListener action) {
             FrameLayout b = new FrameLayout(getContext());
             b.setFocusable(true);
             b.setClickable(true);
             GradientDrawable bg = new GradientDrawable();
             bg.setShape(GradientDrawable.OVAL);
-            bg.setColor(0x2EFFFFFF);
+            bg.setColor(Color.TRANSPARENT);
             b.setBackground(bg);
             android.widget.ImageView g = new android.widget.ImageView(getContext());
             g.setTag("icon");
             g.setImageResource(icon);
-            g.setColorFilter(Color.WHITE);
-            int gs = Math.round(sizeDp * 0.42f);
+            g.setColorFilter(0xE6FFFFFF);
+            int gs = Math.round(sizeDp * 0.6f);
             b.addView(g, new LayoutParams(px(gs), px(gs), Gravity.CENTER));
             b.setLayoutParams(new LinearLayout.LayoutParams(px(sizeDp), px(sizeDp)));
             b.setOnClickListener(action);
             b.setOnFocusChangeListener((v, f) -> {
-                bg.setColor(f ? Color.WHITE : 0x2EFFFFFF);
-                g.setColorFilter(f ? 0xFF1C1C1E : Color.WHITE);
+                bg.setColor(f ? Color.WHITE : Color.TRANSPARENT);
+                g.setColorFilter(f ? 0xFF1C1C1E : 0xE6FFFFFF);
                 v.animate().scaleX(f ? 1.12f : 1f).scaleY(f ? 1.12f : 1f).setDuration(180)
                         .setInterpolator(new android.view.animation.DecelerateInterpolator(2f)).start();
             });
@@ -550,14 +571,17 @@ final class StandByView extends FrameLayout {
             column.removeAllViews();
             lineViews.clear();
             for (Lyrics.Line l : lines) {
-                TextView t = text(l.text.isEmpty() ? " " : l.text, 30, R.string.font_medium);
+                LyricLine t = new LyricLine(getContext());
+                t.setText(l.text.isEmpty() ? " " : l.text);
+                t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 30);
+                t.setTypeface(UiFont.get(getContext(), R.string.font_medium));
+                t.setIncludeFontPadding(false);
                 t.setGravity(Gravity.START);
                 t.setPivotX(0);
                 t.setTextColor(Color.WHITE);
                 t.setAlpha(0.32f);
                 t.setScaleX(0.92f);
                 t.setScaleY(0.92f);
-                t.setText(new android.text.SpannableString(t.getText()), TextView.BufferType.SPANNABLE);
                 LinearLayout.LayoutParams ll = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
                 ll.bottomMargin = px(18);
                 column.addView(t, ll);
@@ -577,6 +601,7 @@ final class StandByView extends FrameLayout {
                 return;
             }
             playGlyph.setImageResource(t.playing ? R.drawable.ic_cc_pause : R.drawable.ic_cc_play);
+            latencyMs = outputLatency() + Config.lyricsOffsetMs;
             String k = Lyrics.key(t.artist, t.title);
             if (k.equals(key)) return;   // same song, a play/pause or position update only
             key = k;
@@ -618,15 +643,40 @@ final class StandByView extends FrameLayout {
             boolean has = !lines.isEmpty();
             idle.setVisibility(has ? View.GONE : View.VISIBLE);
             scroller.setVisibility(has ? View.VISIBLE : View.GONE);
-            if (!has) {
-                breathe(false);
-                return;
-            }
+            if (!has) breathe(false);
+        }
+
+        /**
+         * Where the singer is, as heard: the player reports what it has sent to the speakers, so the speakers' own
+         * delay is taken off (larger for a Bluetooth soundbar), then mapped onto the lyric file's timeline.
+         */
+        private long heardPosition(MediaWatch.Track t) {
+            return Lyrics.sourcePosition(key, Math.max(0, t.positionNow() - latencyMs), t.duration);
+        }
+
+        private void lyricsFrame() {
+            MediaWatch.Track t = track;
+            if (t == null || lines.isEmpty()) return;
+            long pos = heardPosition(t);
             int i = Lyrics.index(lines, pos);
             if (i != current) moveTo(i);
             boolean gap = i < 0 || lines.get(i).text.isEmpty();
             breathe(gap && t.playing);
-            if (!gap) fillWords(i, pos);
+            if (gap) {
+                // The dots take the place of the line that isn't there: the break's own row, or a third of the way
+                // down before the first line.
+                float y = i >= 0 && i < lineViews.size()
+                        ? lineViews.get(i).getTop() - scroller.getScrollY() + (lineViews.get(i).getHeight() - breath.getHeight()) / 2f
+                        : viewport.getHeight() * 0.32f;
+                breath.setY(y);
+            }
+            if (!gap && i < lineViews.size()) {
+                long start = lines.get(i).at;
+                long end = i + 1 < lines.size() ? lines.get(i + 1).at : start + 4000;
+                // Singers finish a line before the next begins: sweep over 85% of the gap, at least 0.6 s.
+                float f = (pos - start) / (float) Math.max(600, (end - start) * 0.85f);
+                lineViews.get(i).setProgress(Math.max(0f, Math.min(1f, f)));
+            }
         }
 
         /** Glide the column so the current line sits a third of the way down; it brightens, the others recede. */
@@ -634,12 +684,14 @@ final class StandByView extends FrameLayout {
             int old = current;
             current = i;
             if (old >= 0 && old < lineViews.size()) {
-                TextView o = lineViews.get(old);
-                fillAll(o, Color.WHITE);
+                LyricLine o = lineViews.get(old);
+                o.setProgress(-1f);
                 o.animate().alpha(0.32f).scaleX(0.92f).scaleY(0.92f).setDuration(500).start();
             }
             if (i < 0 || i >= lineViews.size()) return;
-            TextView n = lineViews.get(i);
+            LyricLine n = lineViews.get(i);
+            n.setColors(accent, 0x80FFFFFF);
+            n.setProgress(0f);
             n.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(500)
                     .setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f)).start();
             int target = Math.max(0, n.getTop() - Math.round(viewport.getHeight() * 0.32f));
@@ -648,34 +700,6 @@ final class StandByView extends FrameLayout {
             scrollAnim.setDuration(700);
             scrollAnim.setInterpolator(new android.view.animation.DecelerateInterpolator(2f));
             scrollAnim.start();
-        }
-
-        /**
-         * Music's word-by-word lighting: the line's words light up in the cover's colour as the line is sung, spread
-         * over the time until the next line (LRCLIB has line times, not word times). Only spans change, so the
-         * text is drawn again without being laid out again.
-         */
-        private void fillWords(int i, long pos) {
-            if (i < 0 || i >= lineViews.size()) return;
-            long start = lines.get(i).at;
-            long end = i + 1 < lines.size() ? lines.get(i + 1).at : start + 4000;
-            float f = Math.max(0f, Math.min(1f, (pos - start) / (float) Math.max(600, (end - start) * 0.85f)));
-            TextView v = lineViews.get(i);
-            android.text.Spannable sp = (android.text.Spannable) v.getText();
-            for (Object o : sp.getSpans(0, sp.length(), android.text.style.ForegroundColorSpan.class)) sp.removeSpan(o);
-            int lit = Math.round(sp.length() * f);
-            // Snap to the end of a word, so whole words light rather than letters.
-            while (lit > 0 && lit < sp.length() && sp.charAt(lit) != ' ') lit++;
-            if (lit > 0) sp.setSpan(new android.text.style.ForegroundColorSpan(accent), 0, lit, 0);
-            if (lit < sp.length()) sp.setSpan(new android.text.style.ForegroundColorSpan(0x99FFFFFF), lit, sp.length(), 0);
-            v.invalidate();
-        }
-
-        private void fillAll(TextView v, int color) {
-            android.text.Spannable sp = (android.text.Spannable) v.getText();
-            for (Object o : sp.getSpans(0, sp.length(), android.text.style.ForegroundColorSpan.class)) sp.removeSpan(o);
-            sp.setSpan(new android.text.style.ForegroundColorSpan(color), 0, sp.length(), 0);
-            v.invalidate();
         }
 
         /** Instrumental breaks: three dots that swell and settle, like breathing, as in Music. */
@@ -700,6 +724,18 @@ final class StandByView extends FrameLayout {
                 if (breathing != null) breathing.cancel();
                 breath.animate().alpha(0f).setDuration(300).withEndAction(() -> breath.setVisibility(View.GONE)).start();
             }
+        }
+
+        /** Typical delay of the output in use: Bluetooth A2DP buffers about a fifth of a second, HDMI ARC less. */
+        private long outputLatency() {
+            android.media.AudioManager am = getContext().getSystemService(android.media.AudioManager.class);
+            long best = 40;
+            for (android.media.AudioDeviceInfo d : am.getDevices(android.media.AudioManager.GET_DEVICES_OUTPUTS)) {
+                int ty = d.getType();
+                if (ty == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP) return 220;
+                if (ty == android.media.AudioDeviceInfo.TYPE_HDMI_ARC || ty == 29) best = 90;
+            }
+            return best;
         }
 
         private String mmss(long ms) {

@@ -44,6 +44,8 @@ final class Lyrics {
 
     private static final ExecutorService IO = Executors.newSingleThreadExecutor();
     private static final Map<String, List<Line>> CACHE = Collections.synchronizedMap(new HashMap<>());
+    /** Length of the recording the timings were made for, in ms (0 when unknown). */
+    private static final Map<String, Long> SOURCE_MS = Collections.synchronizedMap(new HashMap<>());
     private static final Pattern LRC = Pattern.compile("\\[(\\d+):(\\d+)(?:[.:](\\d+))?]\\s*(.*)");
 
     private Lyrics() {
@@ -69,7 +71,7 @@ final class Lyrics {
         IO.execute(() -> {
             List<Line> lines = null;
             try {
-                lines = lookup(firstArtist(artist), clean(title), durationMs);
+                lines = lookup(key, firstArtist(artist), clean(title), durationMs);
             } catch (java.io.IOException offline) {
                 // Network trouble or LRCLIB overloaded (503): don't remember it as "no lyrics"; the next track
                 // change or StandBy visit asks again.
@@ -89,7 +91,7 @@ final class Lyrics {
      * the song, then any synced, then plain lyrics spread over the song. A free-text search when the fielded one
      * finds nothing.
      */
-    private static List<Line> lookup(String artist, String title, long durationMs) throws Exception {
+    private static List<Line> lookup(String key, String artist, String title, long durationMs) throws Exception {
         JSONArray hits = searchArray("https://lrclib.net/api/search?track_name=" + enc(title) + "&artist_name=" + enc(artist));
         if (hits.length() == 0) hits = searchArray("https://lrclib.net/api/search?q=" + enc(artist + " " + title));
         long sec = Math.round(durationMs / 1000.0);
@@ -104,6 +106,7 @@ final class Lyrics {
             if (!synced && plain == null && !h.optString("plainLyrics", "").isEmpty() && !"null".equals(h.optString("plainLyrics"))) plain = h;
         }
         JSONObject pick = near != null ? near : anySynced;
+        if (pick != null) SOURCE_MS.put(key, Math.round(pick.optDouble("duration", 0) * 1000));
         List<Line> lines = new ArrayList<>();
         if (pick != null) {
             for (String row : pick.optString("syncedLyrics").split("\n")) {
@@ -134,6 +137,18 @@ final class Lyrics {
         String t = title.replaceAll("(?i)\\s*[(\\[](feat\\.?|ft\\.?|with|featuring)[^)\\]]*[)\\]]", "");
         t = t.replaceAll("(?i)\\s+-\\s+(remaster(ed)?|live|radio edit|single version|mono|stereo).*$", "");
         return t.trim();
+    }
+
+    /**
+     * The position in the lyric file's own timeline for a playback position. The same song can be a few seconds
+     * longer or shorter between releases (a radio edit, a longer intro), and a fixed offset would only be right at
+     * one point; scaling by the two lengths keeps the whole song in step.
+     */
+    static long sourcePosition(String key, long positionMs, long trackMs) {
+        Long src = SOURCE_MS.get(key);
+        if (src == null || src <= 0 || trackMs <= 0) return positionMs;
+        double ratio = src / (double) trackMs;
+        return ratio > 0.9 && ratio < 1.1 ? Math.round(positionMs * ratio) : positionMs;
     }
 
     /** The line playing at this position, or -1 before the first. */
