@@ -68,6 +68,17 @@ night mode.
 
 ![StandBy faces](screenshots/standby.jpg)
 
+Three more faces after iOS StandBy: **Solar** (the sky's colour for the hour with the sun on its arc), **Float**
+(huge numerals, one colour each), and **Now Playing** with time-synced lyrics over a glow in the artwork's colour.
+
+![Solar and Float](screenshots/standby-solar-float.jpg)
+
+![Now Playing with lyrics](screenshots/standby-lyrics.jpg)
+
+Lyrics come from [LRCLIB](https://lrclib.net), a free community lyrics database, looked up by the song's title,
+artist and length: music apps don't share their own lyrics with other apps. Songs LRCLIB doesn't have show
+"No lyrics for this song".
+
 **Before:** stock Google TV, with sponsored rows, promos and a profile wall.
 
 ![Stock Google TV home](screenshots/before.jpg)

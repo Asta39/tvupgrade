@@ -11,13 +11,27 @@ import android.view.WindowManager;
  */
 public class StandByActivity extends Activity {
     private StandByView view;
+    private MediaWatch media;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        view = new StandByView(this, getSharedPreferences("standby", MODE_PRIVATE).getInt("face", 0));
+        media = new MediaWatch(this);
+        view = new StandByView(this, getSharedPreferences("standby", MODE_PRIVATE).getInt("face", 0), media);
         setContentView(view);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        media.start();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        media.stop();
     }
 
     @Override
