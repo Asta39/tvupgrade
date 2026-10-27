@@ -75,6 +75,13 @@ final class StandByView extends FrameLayout {
         return face;
     }
 
+    /** Jump to a face (cross-fade), e.g. the Now Playing face when music starts. */
+    void showFace(int f) {
+        if (f != face) show(Math.floorMod(f, FACES), true);
+    }
+
+    static final int FACE_NOW_PLAYING = 5;
+
     /** Next (+1) or previous (-1) face with a short cross-fade. */
     void step(int dir) {
         show(Math.floorMod(face + dir, FACES), true);

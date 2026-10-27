@@ -16,9 +16,13 @@ public class StandByActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         media = new MediaWatch(this);
         view = new StandByView(this, getSharedPreferences("standby", MODE_PRIVATE).getInt("face", 0), media);
+        // Awake only while music plays; otherwise the TV's own sleep timer turns it off as usual.
+        media.addListener(t -> {
+            if (t != null && t.playing) getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        });
         setContentView(view);
     }
 

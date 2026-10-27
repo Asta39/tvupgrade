@@ -84,6 +84,13 @@ and "- Remastered" are ignored), prefers synced lyrics within five seconds of th
 LRCLIB is busy, and spreads plain (untimed) lyrics over the song when that's all there is. Songs LRCLIB doesn't
 have show "No lyrics for this song". The remote's play/pause and next keys work while StandBy is up.
 
+**StandBy is the screensaver.** After 10 minutes idle the TV shows StandBy instead of Google's ambient
+screensaver, on Now Playing with lyrics if music is playing (and it switches there if music starts later). While
+music plays, StandBy keeps the TV awake, so a playlist never ends in standby; when the music stops, the TV's own
+sleep timer (about 19 minutes here) turns it off as before. Set it with
+`adb shell settings put secure screensaver_components com.gathin.tvhome/.StandByDream`; `scripts/restore.sh`
+puts Google's back.
+
 **Before:** stock Google TV, with sponsored rows, promos and a profile wall.
 
 ![Stock Google TV home](screenshots/before.jpg)
