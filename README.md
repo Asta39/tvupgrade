@@ -39,6 +39,17 @@ a dimmed home screen.
 
 ![Control Center](screenshots/control-center.jpg)
 
+Scroll down for the controls. **Night Shift** warms everything on screen, every app and HDMI included:
+
+| | |
+|---|---|
+| ![Control Center controls](screenshots/control-center-controls.jpg) | ![Night Shift on](screenshots/night-shift.jpg) |
+
+**Profiles:** pick the person in Control Center's top-right chip. Each has their own dock and wallpapers
+(here Bond, with Prime Video and Reezn in the dock):
+
+![Bond's profile](screenshots/profile-bond.jpg)
+
 **Before:** stock Google TV, with sponsored rows, promos and a profile wall.
 
 ![Stock Google TV home](screenshots/before.jpg)
@@ -55,8 +66,11 @@ a dimmed home screen.
 - **One quiet button** in the top right: Control Center (Inputs lives inside it).
 - **Now Playing:** an Apple Music–style mini player that appears only while something is playing or paused, and
   steps aside when you browse the apps below.
-- **Control Center:** the time, what's playing with back/play-pause/next, a volume slider, and six round controls:
-  Sleep, Sleep timer (cycles 15/30/60/90 min/off), Screensaver, next Wallpaper, Inputs and Settings.
+- **Control Center:** the time and your profile, what's playing with back/play-pause/next, volume and brightness
+  sliders, where sound is going (e.g. a Bluetooth soundbar) and the network, then nine round controls:
+  Sleep, Sleep timer (15/30/60/90 min/off), Screensaver, Night Shift, Screen off (music keeps playing; any button
+  wakes it), Do Not Disturb, next Wallpaper, Inputs and Settings.
+- **Profiles:** each person has their own dock and wallpaper set (`profiles` in the theme's `config.json`).
 - **Nine 4K wallpapers** that rotate every hour with a soft cross-fade.
 
 ## Remote
@@ -99,7 +113,8 @@ The launcher in [`launcher/`](launcher/) is cleanyourtv's reference launcher (pl
 | `keep_watching` | A row of Continue watching cards with posters. Off in this theme, and the only part that uses the internet |
 | CH+/CH− | Step through the wallpapers on Home |
 | `now_playing` | The mini player, from Android's media sessions (needs the notification-listener grant below) |
-| `control_center` | The Control Center panel; Sleep uses a small accessibility service that filters no keys |
+| `control_center` | The Control Center panel. Sleep, Night Shift and Screen off use a small accessibility service that filters no keys, so held volume still ramps |
+| `profiles` | A list of `{name, dock_apps, wallpapers}`; the chip in Control Center switches between them |
 
 The theme itself is [`themes/ian-dusk/`](themes/ian-dusk/): `config.json`, nine 3840×2160 wallpapers, and six depth
 cut-outs. Forest rays and the two ferns have no cut-out on purpose: their busy foliage fills the frame, and
@@ -125,7 +140,7 @@ scripts/install-launcher.sh <tv ip> # builds the launcher and makes it Home
 scripts/push-theme.sh <tv ip>       # wallpapers, depth cut-outs, layout
 ```
 
-Two one-time grants for Now Playing and Control Center's Sleep (or run `scripts/grant.sh <tv ip>`):
+One-time grants for Now Playing and Control Center (or run `scripts/grant.sh <tv ip>`, which also covers brightness and Do Not Disturb):
 
 ```bash
 adb shell cmd notification allow_listener com.gathin.tvhome/.GuardRevival
