@@ -404,9 +404,13 @@ final class Config {
     static boolean iconFill;
     /** This fork: a large centred clock (theme "hero_clock") and a Continue watching row ("keep_watching"). */
     static boolean heroClock, keepWatching, nowPlaying, controlCenter;
+    /** This fork: the weather pill; empty city turns it off. */
+    static String weatherCity = "";
+    static double weatherLat, weatherLon;
 
     static Config load(Context ctx) {
         iconFill = heroClock = keepWatching = nowPlaying = controlCenter = false;
+        weatherCity = "";
         Resources res = ctx.getResources();
         List<String> dock = new ArrayList<>(Arrays.asList(res.getStringArray(R.array.dock_apps)));
         boolean fillDock = res.getBoolean(R.bool.fill_dock);
@@ -573,6 +577,9 @@ final class Config {
             keepWatching = bool(json, "keep_watching", false);
             nowPlaying = bool(json, "now_playing", false);
             controlCenter = bool(json, "control_center", false);
+            weatherCity = json.optString("weather_city", "").trim();
+            weatherLat = json.optDouble("weather_lat", 0);
+            weatherLon = json.optDouble("weather_lon", 0);
             background = color(json, "background_color", background);
             skyIntensity = integer(json, "sky_intensity", skyIntensity, 0, 100);
             settingsKeycodes = intArray(json, "settings_key_keycodes", settingsKeycodes);

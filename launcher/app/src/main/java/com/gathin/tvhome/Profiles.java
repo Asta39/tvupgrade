@@ -24,9 +24,12 @@ final class Profiles {
     static final class Profile {
         final String name;
         final List<String> dockApps, wallpapers;
+        /** A picture in the theme's avatars/ folder, e.g. "ian.png"; empty for the initial on a colour. */
+        final String avatar;
 
-        Profile(String name, List<String> dockApps, List<String> wallpapers) {
+        Profile(String name, List<String> dockApps, List<String> wallpapers, String avatar) {
             this.name = name;
+            this.avatar = avatar;
             this.dockApps = dockApps;
             this.wallpapers = wallpapers;
         }
@@ -48,7 +51,7 @@ final class Profiles {
                 JSONObject o = arr.optJSONObject(i);
                 if (o == null || o.optString("name").trim().isEmpty()) continue;
                 out.add(new Profile(o.optString("name").trim(), strings(o.optJSONArray("dock_apps")),
-                        strings(o.optJSONArray("wallpapers"))));
+                        strings(o.optJSONArray("wallpapers")), o.optString("avatar").trim()));
             }
         }
         list = Collections.unmodifiableList(out);
@@ -89,6 +92,15 @@ final class Profiles {
         List<File> mine = new ArrayList<>();
         for (File f : all) if (p.wallpapers.contains(f.getName())) mine.add(f);
         return mine.isEmpty() ? all : mine;
+    }
+
+    /** The profile's picture, decoded small; null without one. */
+    static android.graphics.Bitmap avatar(Context ctx, Profile p) {
+        File dir = p == null || p.avatar.isEmpty() ? null : Config.dir(ctx);
+        if (dir == null) return null;
+        android.graphics.BitmapFactory.Options o = new android.graphics.BitmapFactory.Options();
+        o.inSampleSize = 1;
+        return android.graphics.BitmapFactory.decodeFile(new File(new File(dir, "avatars"), p.avatar).getPath(), o);
     }
 
     private static List<String> strings(JSONArray a) {

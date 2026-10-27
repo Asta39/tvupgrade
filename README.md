@@ -50,6 +50,24 @@ Scroll down for the controls. **Night Shift** warms everything on screen, every 
 
 ![Bond's profile](screenshots/profile-bond.jpg)
 
+**Weather, avatar:** a weather pill top left (Left from the gear, then OK) opens an Apple Weather–style card:
+current conditions, the next six hours with rain chance, and five days with temperature range bars. The current
+profile's avatar sits next to the gear.
+
+| | |
+|---|---|
+| ![Home with weather pill and avatar](screenshots/home-avatar-weather.jpg) | ![Weather card](screenshots/weather.jpg) |
+
+**Avatars:** original 3D cartoon avatars generated for each profile (not Apple's Memoji art).
+
+![Ian and Bond](screenshots/avatars.png)
+
+**StandBy:** Control Center → StandBy. Three faces on black, switched with Left/Right: huge digits, an analog
+clock, and a clock beside this month's calendar. From 22:00 to 06:00 they turn dim red, like iPhone StandBy's
+night mode.
+
+![StandBy faces](screenshots/standby.jpg)
+
 **Before:** stock Google TV, with sponsored rows, promos and a profile wall.
 
 ![Stock Google TV home](screenshots/before.jpg)
@@ -114,7 +132,9 @@ The launcher in [`launcher/`](launcher/) is cleanyourtv's reference launcher (pl
 | CH+/CH− | Step through the wallpapers on Home |
 | `now_playing` | The mini player, from Android's media sessions (needs the notification-listener grant below) |
 | `control_center` | The Control Center panel. Sleep, Night Shift and Screen off use a small accessibility service that filters no keys, so held volume still ramps |
-| `profiles` | A list of `{name, dock_apps, wallpapers}`; the chip in Control Center switches between them |
+| `profiles` | A list of `{name, dock_apps, wallpapers, avatar}`; the chip in Control Center switches between them. Avatars live in the theme's `avatars/` folder |
+| `weather_city`, `weather_lat`, `weather_lon` | The weather pill and forecast card, from Open-Meteo (free, no key), refreshed at most every 30 minutes while Home is showing |
+| StandBy | `StandByActivity` from Control Center; also installed as a screensaver named StandBy (Settings → Screen saver, or `settings put secure screensaver_components com.gathin.tvhome/.StandByDream`) |
 
 The theme itself is [`themes/ian-dusk/`](themes/ian-dusk/): `config.json`, nine 3840×2160 wallpapers, and six depth
 cut-outs. Forest rays and the two ferns have no cut-out on purpose: their busy foliage fills the frame, and

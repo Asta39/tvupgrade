@@ -241,6 +241,24 @@
             </intent-filter>
         </receiver>
 
+        <!-- This fork: StandBy clock faces, on demand and as the screensaver. -->
+        <activity
+            android:name=".StandByActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:screenOrientation="landscape"
+            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen" />
+        <service
+            android:name=".StandByDream"
+            android:exported="true"
+            android:label="StandBy"
+            android:permission="android.permission.BIND_DREAM_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.dreams.DreamService" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </service>
+
         <!-- This fork: standby and the sleep timer for Control Center. Filters no keys (see SleepService). -->
         <service
             android:name=".SleepService"

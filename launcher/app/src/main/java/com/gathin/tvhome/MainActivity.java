@@ -142,6 +142,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private WallpaperPlayer wallpaperPlayer;
     private HomeExtras homeExtras;
     private MediaWatch mediaWatch;
+    private Weather weather;
+    private View homeAvatar;
     private ControlCenter controlCenter;
     private GlassView glass;
     private View ambient;
@@ -598,6 +600,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 singleRow, cfg.dockBandAll));
         WallpaperPlayer.onGlass = grid::invalidate;
         homeExtras = HomeExtras.attach(this, findViewById(R.id.root), clockBlock, grid);
+        if (!Config.weatherCity.isEmpty()) weather = new Weather(this, findViewById(R.id.root), Config.weatherCity, Config.weatherLat, Config.weatherLon);
         if (Config.nowPlaying || Config.controlCenter) mediaWatch = new MediaWatch(this);
         if (Config.nowPlaying) mediaWatch.addListener(new NowPlayingCard(this, findViewById(R.id.root), grid, homeExtras));
         if (Config.controlCenter) {
@@ -980,6 +983,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         if (homeExtras != null) homeExtras.refresh();
         if (mediaWatch != null) mediaWatch.start();
+        if (weather != null) weather.refresh();
+        if (controlCenter != null && homeAvatar == null && Profiles.current() != null) placeHomeAvatar();
         // Set here, after the top bar has wired its own click: the gear opens Control Center, which links to Settings.
         if (controlCenter != null) findViewById(R.id.btnSettings).setOnClickListener(v -> controlCenter.open());
         restartIdleClock();
@@ -2962,6 +2967,27 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         } catch (Exception e) {
             Toast.makeText(this, R.string.not_available, Toast.LENGTH_SHORT).show();
         }
+    }
+
+    /** This fork: the current profile's picture, just left of the Control Center button, as tvOS shows it. */
+    private void placeHomeAvatar() {
+        View gear = findViewById(R.id.btnSettings);
+        FrameLayout root = findViewById(R.id.root);
+        float d = getResources().getDisplayMetrics().density;
+        homeAvatar = controlCenter.avatarView(Profiles.current(), Profiles.activeIndex(), 42);
+        homeAvatar.setFocusable(false);
+        homeAvatar.setAlpha(0f);
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(Math.round(42 * d), Math.round(42 * d), Gravity.TOP | Gravity.START);
+        root.addView(homeAvatar, lp);
+        gear.post(() -> {
+            int[] g = new int[2], r = new int[2];
+            gear.getLocationOnScreen(g);
+            root.getLocationOnScreen(r);
+            lp.leftMargin = g[0] - r[0] - Math.round(54 * d);
+            lp.topMargin = g[1] - r[1] + (gear.getHeight() - lp.height) / 2;
+            homeAvatar.setLayoutParams(lp);
+            homeAvatar.animate().alpha(1f).setDuration(250).start();
+        });
     }
 
     private void open(Intent i) {

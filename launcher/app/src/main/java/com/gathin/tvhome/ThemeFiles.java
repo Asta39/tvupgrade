@@ -25,6 +25,9 @@ final class ThemeFiles {
             return WALLPAPERS + "/" + segments.get(1);
         }
         // This fork's depth cut-outs (WallpaperPlayer.decodeDepth): depth/<picture name>.png.
+        if (segments.size() == 2 && "avatars".equals(segments.get(0)) && segments.get(1).matches("[A-Za-z0-9._-]+\\.png")) {
+            return "avatars/" + segments.get(1);
+        }
         if (segments.size() == 2 && "depth".equals(segments.get(0)) && segments.get(1).matches("[A-Za-z0-9._-]+\\.png")) {
             return "depth/" + segments.get(1);
         }

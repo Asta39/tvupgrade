@@ -177,9 +177,9 @@ final class ControlCenter implements MediaWatch.Listener {
         View timer = tile(R.drawable.ic_cc_timer, "Sleep timer", v -> cycleTimer());
         timerLabel = timer.findViewWithTag("label");
         row1.addView(timer);
-        row1.addView(tile(R.drawable.ic_cc_sparkle, "Screensaver", v -> {
+        row1.addView(tile(R.drawable.ic_cc_sparkle, "StandBy", v -> {
             close();
-            RemoteKeys.runAction(activity, "screensaver");
+            activity.startActivity(new android.content.Intent(activity, StandByActivity.class));
         }));
         row2.addView(toggle(R.drawable.ic_cc_nightshift, "Night Shift", 0xFFFF9F0A,
                 () -> SleepService.nightShift(activity), on -> {
@@ -212,15 +212,7 @@ final class ControlCenter implements MediaWatch.Listener {
         bg.setColor(CHIP);
         bg.setCornerRadius(px(22));
         chip.setBackground(bg);
-        TextView initial = new TextView(activity);
-        initial.setText(me.name.substring(0, 1).toUpperCase());
-        style(initial, 14, Color.WHITE, R.string.font_medium, 0f);
-        initial.setGravity(Gravity.CENTER);
-        GradientDrawable dot = new GradientDrawable();
-        dot.setShape(GradientDrawable.OVAL);
-        dot.setColor(PROFILE_COLORS[Profiles.activeIndex() % PROFILE_COLORS.length]);
-        initial.setBackground(dot);
-        chip.addView(initial, new LinearLayout.LayoutParams(px(30), px(30)));
+        chip.addView(avatarView(me, Profiles.activeIndex(), 30), new LinearLayout.LayoutParams(px(30), px(30)));
         TextView name = new TextView(activity);
         name.setText(me.name);
         style(name, 14, Color.WHITE, R.string.font_medium, 0f);
@@ -238,6 +230,32 @@ final class ControlCenter implements MediaWatch.Listener {
             lift(v, f, 1.06f);
         });
         return chip;
+    }
+
+    /** A profile's round picture, or its initial on the profile's colour when it has none. */
+    View avatarView(Profiles.Profile p, int index, int sizeDp) {
+        android.graphics.Bitmap pic = Profiles.avatar(activity, p);
+        if (pic != null) {
+            ImageView i = new ImageView(activity);
+            i.setImageBitmap(pic);
+            i.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            i.setOutlineProvider(ViewOutlineProvider.BACKGROUND);
+            GradientDrawable oval = new GradientDrawable();
+            oval.setShape(GradientDrawable.OVAL);
+            oval.setColor(CHIP);
+            i.setBackground(oval);
+            i.setClipToOutline(true);
+            return i;
+        }
+        TextView initial = new TextView(activity);
+        initial.setText(p.name.substring(0, 1).toUpperCase());
+        style(initial, Math.round(sizeDp * 0.46f), Color.WHITE, R.string.font_medium, 0f);
+        initial.setGravity(Gravity.CENTER);
+        GradientDrawable dot = new GradientDrawable();
+        dot.setShape(GradientDrawable.OVAL);
+        dot.setColor(PROFILE_COLORS[index % PROFILE_COLORS.length]);
+        initial.setBackground(dot);
+        return initial;
     }
 
     /** A status line (audio output, network) that opens the matching settings page. */

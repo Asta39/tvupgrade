@@ -54,7 +54,8 @@
         "03-golden-peak.jpg",
         "04-fog-forest.jpg",
         "05-green-lake.jpg"
-      ]
+      ],
+      "avatar": "ian.png"
     },
     {
       "name": "Bond",
@@ -74,7 +75,11 @@
         "08-fern-dark.jpg",
         "09-fern-canopy.jpg",
         "03-golden-peak.jpg"
-      ]
+      ],
+      "avatar": "bond.png"
     }
-  ]
+  ],
+  "weather_city": "Nairobi",
+  "weather_lat": -1.2864,
+  "weather_lon": 36.8172
 }
