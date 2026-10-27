@@ -282,6 +282,7 @@ final class StandByView extends FrameLayout {
         private final LinearLayout column;
         private android.widget.ImageView playGlyph;
         private MediaWatch.Track track;
+        private android.graphics.Bitmap shownArt;
         private List<Lyrics.Line> lines = java.util.Collections.emptyList();
         private final List<LyricLine> lineViews = new java.util.ArrayList<>();
         private long latencyMs;
@@ -566,19 +567,42 @@ final class StandByView extends FrameLayout {
             current = -2;
         }
 
+        /**
+         * Only real instrumental breaks keep a row (three seconds or more, including a long intro); the short blank
+         * lines many lyric files carry between verses are dropped, so dots never flash in mid-song.
+         */
+        private List<Lyrics.Line> withBreaks(List<Lyrics.Line> in) {
+            List<Lyrics.Line> out = new java.util.ArrayList<>();
+            if (in.isEmpty()) return out;
+            if (in.get(0).at >= 3000) out.add(new Lyrics.Line(0, ""));
+            for (int i = 0; i < in.size(); i++) {
+                Lyrics.Line l = in.get(i);
+                if (!l.text.isEmpty()) {
+                    out.add(l);
+                    continue;
+                }
+                long next = i + 1 < in.size() ? in.get(i + 1).at : l.at + 4000;
+                if (next - l.at >= 3000 && (out.isEmpty() || !out.get(out.size() - 1).text.isEmpty())) out.add(l);
+            }
+            return out;
+        }
+
         /** One view per line, built once per song. */
         private void buildLines() {
             column.removeAllViews();
             lineViews.clear();
             for (Lyrics.Line l : lines) {
                 LyricLine t = new LyricLine(getContext());
-                t.setText(l.text.isEmpty() ? " " : l.text);
+                // A break is its own row of three dots, in the cover's colour, in line with the lyrics.
+                boolean dots = l.text.isEmpty();
+                t.setText(dots ? "•  •  •" : l.text);
+                if (dots) t.setTag("dots");
                 t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 30);
                 t.setTypeface(UiFont.get(getContext(), R.string.font_medium));
                 t.setIncludeFontPadding(false);
                 t.setGravity(Gravity.START);
                 t.setPivotX(0);
-                t.setTextColor(Color.WHITE);
+                t.setTextColor(dots ? accent : Color.WHITE);
                 t.setAlpha(0.32f);
                 t.setScaleX(0.92f);
                 t.setScaleY(0.92f);
@@ -603,8 +627,9 @@ final class StandByView extends FrameLayout {
             playGlyph.setImageResource(t.playing ? R.drawable.ic_cc_pause : R.drawable.ic_cc_play);
             latencyMs = outputLatency() + Config.lyricsOffsetMs;
             String k = Lyrics.key(t.artist, t.title);
-            if (k.equals(key)) return;   // same song, a play/pause or position update only
-            key = k;
+            boolean sameSong = k.equals(key);
+            if (sameSong && t.art == shownArt) return;   // a play/pause or position update only
+            shownArt = t.art;
             title.setText(t.title);
             artist.setText(t.artist);
             if (t.art != null) {
@@ -615,6 +640,13 @@ final class StandByView extends FrameLayout {
                 art.setImageResource(R.drawable.ic_cc_music);
                 paintAccent(Color.WHITE);
             }
+            if (sameSong) {
+                // The cover arrived after the song started: recolour the lines already built.
+                for (LyricLine v : lineViews) if ("dots".equals(v.getTag())) v.setTextColor(accent);
+                if (current >= 0 && current < lineViews.size()) lineViews.get(current).setColors(accent, 0x80FFFFFF);
+                return;
+            }
+            key = k;
             lines = java.util.Collections.emptyList();
             buildLines();
             fetch(t);
@@ -625,7 +657,7 @@ final class StandByView extends FrameLayout {
             String k = Lyrics.key(t.artist, t.title);
             Lyrics.load(t.artist, t.title, t.duration, (kk, l) -> {
                 if (!kk.equals(key)) return;
-                lines = l;
+                lines = withBreaks(l);
                 buildLines();
                 if (l.isEmpty() && !Lyrics.known(kk)) {
                     root.postDelayed(() -> { if (k.equals(key) && track != null) fetch(track); }, 20_000);
@@ -643,7 +675,7 @@ final class StandByView extends FrameLayout {
             boolean has = !lines.isEmpty();
             idle.setVisibility(has ? View.GONE : View.VISIBLE);
             scroller.setVisibility(has ? View.VISIBLE : View.GONE);
-            if (!has) breathe(false);
+            if (!has) breathe(null);
         }
 
         /**
@@ -661,15 +693,7 @@ final class StandByView extends FrameLayout {
             int i = Lyrics.index(lines, pos);
             if (i != current) moveTo(i);
             boolean gap = i < 0 || lines.get(i).text.isEmpty();
-            breathe(gap && t.playing);
-            if (gap) {
-                // The dots take the place of the line that isn't there: the break's own row, or a third of the way
-                // down before the first line.
-                float y = i >= 0 && i < lineViews.size()
-                        ? lineViews.get(i).getTop() - scroller.getScrollY() + (lineViews.get(i).getHeight() - breath.getHeight()) / 2f
-                        : viewport.getHeight() * 0.32f;
-                breath.setY(y);
-            }
+            breathe(gap && t.playing && i >= 0 ? lineViews.get(i) : null);
             if (!gap && i < lineViews.size()) {
                 long start = lines.get(i).at;
                 long end = i + 1 < lines.size() ? lines.get(i + 1).at : start + 4000;
@@ -690,8 +714,10 @@ final class StandByView extends FrameLayout {
             }
             if (i < 0 || i >= lineViews.size()) return;
             LyricLine n = lineViews.get(i);
-            n.setColors(accent, 0x80FFFFFF);
-            n.setProgress(0f);
+            if (!"dots".equals(n.getTag())) {
+                n.setColors(accent, 0x80FFFFFF);
+                n.setProgress(0f);
+            }
             n.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(500)
                     .setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f)).start();
             int target = Math.max(0, n.getTop() - Math.round(viewport.getHeight() * 0.32f));
@@ -702,28 +728,26 @@ final class StandByView extends FrameLayout {
             scrollAnim.start();
         }
 
-        /** Instrumental breaks: three dots that swell and settle, like breathing, as in Music. */
-        private void breathe(boolean on) {
-            if (on == (breath.getVisibility() == View.VISIBLE)) return;
-            if (on) {
-                breath.setVisibility(View.VISIBLE);
-                breath.setAlpha(0f);
-                breath.animate().alpha(1f).setDuration(400).start();
-                breathing = android.animation.ValueAnimator.ofFloat(0.88f, 1.12f);
-                breathing.setDuration(1600);
-                breathing.setRepeatMode(android.animation.ValueAnimator.REVERSE);
-                breathing.setRepeatCount(android.animation.ValueAnimator.INFINITE);
-                breathing.setInterpolator(new android.view.animation.AccelerateDecelerateInterpolator());
-                breathing.addUpdateListener(a -> {
-                    float s = (float) a.getAnimatedValue();
-                    breath.setScaleX(s);
-                    breath.setScaleY(s);
-                });
-                breathing.start();
-            } else {
-                if (breathing != null) breathing.cancel();
-                breath.animate().alpha(0f).setDuration(300).withEndAction(() -> breath.setVisibility(View.GONE)).start();
-            }
+        private View breathingRow;
+
+        /** Instrumental breaks: the break's row of dots swells and settles, like breathing, as in Music. */
+        private void breathe(View row) {
+            if (row == breathingRow) return;
+            if (breathing != null) breathing.cancel();
+            if (breathingRow != null) breathingRow.animate().scaleX(1f).scaleY(1f).setDuration(300).start();
+            breathingRow = row;
+            if (row == null) return;
+            breathing = android.animation.ValueAnimator.ofFloat(0.9f, 1.12f);
+            breathing.setDuration(1600);
+            breathing.setRepeatMode(android.animation.ValueAnimator.REVERSE);
+            breathing.setRepeatCount(android.animation.ValueAnimator.INFINITE);
+            breathing.setInterpolator(new android.view.animation.AccelerateDecelerateInterpolator());
+            breathing.addUpdateListener(an -> {
+                float sc = (float) an.getAnimatedValue();
+                row.setScaleX(sc);
+                row.setScaleY(sc);
+            });
+            breathing.start();
         }
 
         /** Typical delay of the output in use: Bluetooth A2DP buffers about a fifth of a second, HDMI ARC less. */

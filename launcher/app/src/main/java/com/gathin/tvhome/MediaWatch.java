@@ -29,6 +29,8 @@ final class MediaWatch {
     static final class Track {
         final String title, artist, pkg;
         final Bitmap art;
+        /** Where the artwork can be fetched when the app sends a link instead of the picture itself. */
+        final String artUri;
         final boolean playing;
         final long duration, position, at;
         final float speed;
@@ -42,6 +44,14 @@ final class MediaWatch {
             Bitmap b = m.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART);
             if (b == null) b = m.getBitmap(MediaMetadata.METADATA_KEY_ART);
             if (b == null) b = m.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON);
+            String uri = null;
+            for (String k : new String[]{MediaMetadata.METADATA_KEY_ALBUM_ART_URI, MediaMetadata.METADATA_KEY_ART_URI,
+                    MediaMetadata.METADATA_KEY_DISPLAY_ICON_URI}) {
+                String v = m.getString(k);
+                if (v != null && !v.isEmpty()) { uri = v; break; }
+            }
+            artUri = uri;
+            if (b == null && uri != null) b = ART.get(uri);
             art = b;
             duration = Math.max(0, m.getLong(MediaMetadata.METADATA_KEY_DURATION));
             playing = s != null && s.getState() == PlaybackState.STATE_PLAYING;
@@ -154,6 +164,65 @@ final class MediaWatch {
         publish();
     }
 
+    /** Artwork fetched from links, by link; small (at most 512 px), so a session's worth stays cheap. */
+    private static final java.util.Map<String, Bitmap> ART = java.util.Collections.synchronizedMap(
+            new java.util.LinkedHashMap<String, Bitmap>(16, 0.75f, true) {
+                @Override protected boolean removeEldestEntry(java.util.Map.Entry<String, Bitmap> e) { return size() > 24; }
+            });
+    private static final java.util.Set<String> LOADING = java.util.Collections.synchronizedSet(new java.util.HashSet<>());
+    private static final java.util.concurrent.ExecutorService ART_IO = java.util.concurrent.Executors.newSingleThreadExecutor();
+
+    /** Fetch a linked cover once (content://, android.resource:// or https), then publish the track again with it. */
+    private void fetchArt(String uri) {
+        if (!LOADING.add(uri)) return;
+        ART_IO.execute(() -> {
+            Bitmap b = null;
+            try {
+                byte[] bytes;
+                if (uri.startsWith("http")) {
+                    java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL(uri).openConnection();
+                    c.setConnectTimeout(6000);
+                    c.setReadTimeout(8000);
+                    try (java.io.InputStream in = c.getInputStream()) {
+                        bytes = readAll(in);
+                    } finally {
+                        c.disconnect();
+                    }
+                } else {
+                    try (java.io.InputStream in = ctx.getContentResolver().openInputStream(android.net.Uri.parse(uri))) {
+                        bytes = in != null ? readAll(in) : null;
+                    }
+                }
+                if (bytes != null) {
+                    android.graphics.BitmapFactory.Options o = new android.graphics.BitmapFactory.Options();
+                    o.inJustDecodeBounds = true;
+                    android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.length, o);
+                    int sample = 1;
+                    while (o.outWidth / (sample * 2) >= 512) sample *= 2;
+                    o = new android.graphics.BitmapFactory.Options();
+                    o.inSampleSize = sample;
+                    b = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.length, o);
+                }
+            } catch (Exception | OutOfMemoryError failed) {
+                android.util.Log.w("MediaWatch", "artwork " + uri + ": " + failed);
+            }
+            if (b != null) ART.put(uri, b);
+            else LOADING.remove(uri);   // try again on the next track update
+            if (b != null) main.post(this::publish);
+        });
+    }
+
+    private static byte[] readAll(java.io.InputStream in) throws java.io.IOException {
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        byte[] buf = new byte[16384];
+        int n;
+        while ((n = in.read(buf)) > 0) {
+            out.write(buf, 0, n);
+            if (out.size() > 6 * 1024 * 1024) throw new java.io.IOException("artwork too large");
+        }
+        return out.toByteArray();
+    }
+
     private void publish() {
         MediaController c = current;
         if (c == null || c.getMetadata() == null) {
@@ -166,7 +235,9 @@ final class MediaWatch {
             set(null);
             return;
         }
-        set(new Track(c, c.getMetadata(), s));
+        Track t = new Track(c, c.getMetadata(), s);
+        if (t.art == null && t.artUri != null) fetchArt(t.artUri);
+        set(t);
     }
 
     private void set(Track t) {
