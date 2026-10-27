@@ -127,8 +127,9 @@ final class ControlCenter implements MediaWatch.Listener {
         // Taller than the screen once music, both sliders and nine controls are in: it scrolls with focus.
         ScrollView scroll = new ScrollView(activity);
         scroll.setVerticalScrollBarEnabled(false);
-        scroll.setVerticalFadingEdgeEnabled(true);
-        scroll.setFadingEdgeLength(px(24));
+        // No fading edge: over the frosted glass Android draws it as a dark smear above the last row.
+        scroll.setVerticalFadingEdgeEnabled(false);
+        scroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
         scroll.setClipToPadding(false);
         scroll.setPadding(px(20), px(20), px(20), px(36));
         p.addView(scroll, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
