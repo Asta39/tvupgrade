@@ -89,24 +89,14 @@ final class HomeExtras {
         date.setGravity(Gravity.CENTER_HORIZONTAL);
         box.addView(date, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        TextClock clock = new TextClock(activity);
-        clock.setFormat12Hour("h:mm");
-        clock.setFormat24Hour("H:mm");
-        clock.setTextSize(TypedValue.COMPLEX_UNIT_SP, 150);
-        clock.setTypeface(UiFont.get(activity, R.string.font_light));
-        clock.setIncludeFontPadding(false);
-        clock.setLetterSpacing(-0.03f);   // display size wants negative tracking
-        // Lock-screen glass: bright at the top, fading into the picture towards the baseline.
-        clock.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
-            if (b - t == ob - ot) return;
-            clock.getPaint().setShader(new LinearGradient(0, 0, 0, b - t,
-                    0xF2FFFFFF, 0x80FFFFFF, Shader.TileMode.CLAMP));
-            clock.invalidate();
-        });
-        clock.setTextColor(Color.WHITE);
+        // iOS lock-screen digits: tall Barlow Condensed, drawn as liquid glass over the picture.
+        GlassClock clock = new GlassClock(activity, activity.getResources().getFont(R.font.clock_barlow),
+                TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 250, activity.getResources().getDisplayMetrics()),
+                0.74f);
+        WallpaperPlayer.onClock = clock::render;
         LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        clp.topMargin = Math.round(-6 * dp);
+        clp.topMargin = Math.round(-14 * dp);
         box.addView(clock, clp);
 
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(

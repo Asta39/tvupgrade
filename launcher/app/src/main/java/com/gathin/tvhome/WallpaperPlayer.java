@@ -299,6 +299,9 @@ final class WallpaperPlayer {
         } else {
             image.setImageBitmap(bitmap);
         }
+        shownBitmap = bitmap;
+        shownView = image;
+        if (onClock != null) image.post(onClock);
         if (onGlass != null) image.post(onGlass);
         Bitmap oldDepth = depthShown;
         depthShown = nextDepth;
@@ -311,6 +314,10 @@ final class WallpaperPlayer {
      * (DockDecoration). Made once per picture by scaling down twice with filtering: no live blur.
      */
     static volatile Bitmap glass;
+    /** The picture on screen and its view, for the hero clock's glass digits (GlassClock); onClock after a change. */
+    static volatile Bitmap shownBitmap;
+    static android.widget.ImageView shownView;
+    static Runnable onClock;
     /** Called on the UI thread after a new picture (and its glass) is on screen. */
     static Runnable onGlass;
     /**

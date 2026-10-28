@@ -1,16 +1,30 @@
 # TV Upgrade
 
-**A TCL Google TV, debloated and given an Apple TV–style home screen.** Big lock-screen clock, scenery that stands in
-front of the time, a row of iOS-style app icons along the bottom, and nothing else.
+**A TCL Google TV, debloated and given an Apple TV–style home screen.** A tall iOS lock-screen clock made of
+liquid glass, scenery that stands in front of the time, a row of iOS-style app icons along the bottom, and nothing
+else.
 
 ![Home screen, golden peak](screenshots/home-3.jpg)
 
 Built on a TCL G10 (Google TV 12) with [Claude Code](https://claude.com/claude-code), starting from
 [cleanyourtv](https://github.com/Gathin23/cleanyourtv): no root, no firmware flashing, and every change can be undone.
 
+> **Handing this repo to a coding agent?** Point it at [`AGENTS.md`](AGENTS.md). It and the skill in
+> [`.claude/skills/tv-upgrade/`](.claude/skills/tv-upgrade/SKILL.md) walk an agent through the whole build, step
+> by step, with the traps we hit along the way.
+
 ---
 
 ## The look
+
+**The clock is liquid glass.** Tall, condensed digits (Barlow Condensed, stretched like the iOS lock screen)
+work as clear lenses over the wallpaper: the picture bends near each stroke's edge, red and blue split a little
+the way real glass splits light, and the edges facing the top-left catch a bright rim. It is not the frosted
+blur of the buttons. The mountain still stands in front of the time.
+
+| | |
+|---|---|
+| ![Glass clock over the golden peak](screenshots/glass-clock.jpg) | ![Glass clock over the fog forest](screenshots/glass-clock-forest.jpg) |
 
 | | |
 |---|---|
@@ -88,7 +102,9 @@ The lyrics scroll like Apple Music's: the whole song in one column that glides t
 line lit by a soft-edged sweep in the cover's colour, drawn every frame without re-laying out the text (LRCLIB has
 line times, not word times, so the sweep spans each line). Timing allows for the speakers' delay (about 0.2 s over
 Bluetooth) and for releases of different length; nudge it with `"lyrics_offset_ms"` in the theme (positive = later).
-Three breathing dots fill instrumental breaks. On this face OK plays or pauses, Down reaches the bare-glyph
+Three breathing dots fill instrumental breaks of 3 seconds or more, as their own row in the lyrics so they never
+sit on a line. When an app hands over only a link to its cover art (Bitchord does), the launcher downloads it and
+keeps the last 24. On this face OK plays or pauses, Down reaches the bare-glyph
 previous / play / next buttons under the artwork (Left/Right between them, Up to leave), and CH+/CH- change the
 StandBy face from any face, as they change the wallpaper on Home.
 
@@ -105,7 +121,9 @@ puts Google's back.
 
 ## What's on screen
 
-- **Lock-screen clock.** A large, thin, centred clock that fades towards the bottom, with the date above it.
+- **Lock-screen clock.** A tall, condensed, centred clock in liquid glass (see above), with the date above it.
+  `GlassClock` renders the digits once a minute and on every wallpaper change, on a worker thread: no live
+  blur, nothing per frame.
 - **Depth effect.** On six of the nine wallpapers the mountain, trees or hills are cut out and drawn *in front of*
   the clock, like the iPhone lock screen. The top of the digits always stays readable.
 - **Eight icons, nothing else.** Netflix, Bitchord, TizenTube, Crunchyroll, Shuffler, AniFam, Spotify and Apple TV,
@@ -156,7 +174,8 @@ The launcher in [`launcher/`](launcher/) is cleanyourtv's reference launcher (pl
 |---|---|
 | `icon_fill` | Square tiles whose app icon fills the card, with iOS-proportioned corners (22.5%) |
 | `columns` up to 14 | Stock caps at 8 |
-| `hero_clock` | The centred lock-screen clock and date |
+| `hero_clock` | The centred lock-screen clock and date, drawn as liquid glass by `GlassClock` (Barlow Condensed at 250sp, squeezed to 74% width) |
+| `lyrics_offset_ms` | Nudges StandBy's lyrics, in ms (positive = later), on top of the measured speaker delay |
 | depth cut-outs | `depth/<wallpaper name>.png` is drawn over the clock and cross-fades with its wallpaper |
 | `dock_glass` | Frosted dock made from a pre-blurred copy of the wallpaper (no live blur). Off in this theme |
 | `keep_watching` | A row of Continue watching cards with posters. Off in this theme, and the only part that uses the internet |
@@ -224,6 +243,6 @@ unencrypted, and anyone on your network could reach it while it's open.
 ## Credits
 
 - [cleanyourtv](https://github.com/Gathin23/cleanyourtv) by Gathin23: the launcher, tools and safety rules (MIT, see [LICENSE](LICENSE))
-- [Outfit](https://fonts.google.com/specimen/Outfit) typeface (SIL Open Font License, [`launcher/FONT-LICENSE-OFL.txt`](launcher/FONT-LICENSE-OFL.txt))
+- [Outfit](https://fonts.google.com/specimen/Outfit) and [Barlow Condensed](https://fonts.google.com/specimen/Barlow+Condensed) (the clock) typefaces, both SIL Open Font License ([`launcher/FONT-LICENSE-OFL.txt`](launcher/FONT-LICENSE-OFL.txt))
 - Wallpaper photos belong to their photographers
 - Design reference: the Apple TV / iOS lock screen
