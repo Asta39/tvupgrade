@@ -1,0 +1,48 @@
+# Vitron smart TV (CVTE board, product mt5867_eu / m7332_eu, model SMART_TV, MediaTek MT5867), Android 11
+# (API 30), firmware 20220823_210829, Kenya. 1920x1080, about 900 MB RAM (19 MB free before debloat).
+# Stock launcher: com.cvte.tv.launcher.highend (the largest process on the TV, ~125 MB).
+#
+# Apply:   TV_HOST=<tv ip>:5555 tools/disable.sh debloat/vitron-cvte-mt5867.txt
+# Undo:    TV_HOST=<tv ip>:5555 tools/restore.sh debloat/vitron-cvte-mt5867.txt
+# Everything is DISABLED, not uninstalled. Comment out any line you want to keep.
+#
+# Getting ADB: no Android Settings or Developer options. ADB is in the CVTE factory menu
+# (com.cvte.fac.menu, kept below); network ADB on 5555 came up after a reboot with it on.
+#
+# Kept on purpose (CVTE TV plumbing, unsafe to disable): com.cvte.tvservice, com.cvte.tv.api.impl,
+# com.cvte.tv.globalui, com.cvte.tv.setting, com.cvte.settings, com.cvte.tv.media, com.cvte.fac.menu,
+# com.cvte.factory.*, com.cvte.license.at, com.cvte.tv.provision, com.cvte.tv.systemupgrade (firmware updates),
+# all com.mediatek.* / com.mstar.* / com.huidi.rro.* overlays, Google Play services, Play Store, keyboard.
+# WARNING (2026-10-29): after this list booted fine, installing the launcher with STOCK_LAUNCHER=
+# com.cvte.tv.launcher.highend (stock launcher disabled) + theme push + grant.sh left the TV stuck on the boot
+# logo with no network, so no ADB. Needed a factory reset from recovery. Cause not isolated: do NOT disable
+# the CVTE launcher on this board, and reboot-test after each step.
+# See the cleanyourtv Artel CVTE note: one CVTE auth package stopped boot when disabled.
+
+# Tracking, telemetry and remote access
+com.cvte.tv.remotedebug                # CVTE remote debugging over the internet
+com.cvte.tv.ucservice                  # CVTE user-center / cloud data service
+com.google.android.feedback            # Google feedback uploader
+com.google.android.gms.location.history
+com.google.android.apps.wellbeing      # usage tracking (no UI on a TV)
+
+# Ads, promos and pushed content
+com.cvte.gaia.channel                  # promo / recommendation channel feed
+com.cvte.tv.pictorial                  # pictorial ad screens
+com.stark.store                        # Stark app store (pushes installs)
+fusion.android.tv.demo                 # store demo mode
+
+# Bloat the new home screen replaces
+com.cvte.tv.weather                    # launcher has its own weather
+com.cvte.tv.steward                    # "cleaner"/task steward
+com.cvte.tv.taskmanager
+com.seraphic.openinet.cvte             # bundled web browser
+com.android.printspooler
+com.android.traceur
+com.android.dreams.basic
+com.android.wallpaperpicker
+
+# Screen mirroring (~36 MB running). Keep these three if you cast from a phone.
+com.maxhub.screenshare.server.tv
+com.screenshare.platform
+com.cvte.dssshare.dlna

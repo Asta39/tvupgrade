@@ -53,8 +53,10 @@ Launcher files that carry this fork's features:
 1. Model check: `adb shell getprop ro.product.model`. The list is for a **TCL G10**. Any other model: start
    from that model's list in cleanyourtv's `examples/` and show the owner the list before running.
 2. `scripts/debloat.sh <ip>`. It saves `backup/` first. Never `pm uninstall`.
-3. Optional, with consent: Private DNS to AdGuard
-   (`settings put global private_dns_mode hostname`, `private_dns_specifier dns.adguard-dns.com`).
+3. Optional, with consent: ad-blocking DNS **on the router** (AdGuard 94.140.14.14 / 94.140.15.15). Do not
+   set the TV's strict Private DNS (`private_dns_mode hostname`): on this TCL, whenever the DNS-over-TLS link
+   hiccuped every lookup failed, and apps (TizenTube) hung on skeleton screens or claimed "no internet" with
+   ethernet connected. Keep the TV on `private_dns_mode opportunistic`.
 4. Check: `adb shell pm list packages -d` contains the list; TV still boots to a home screen.
 
 ## 3. Launcher

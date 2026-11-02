@@ -163,7 +163,7 @@ Twenty-two packages were **disabled, not uninstalled**: the 21 in [`debloat/tcl-
 
 Kept on purpose: voice/mic, Chromecast, AirPlay/Miracast, the ambient screensaver, the game bar and firmware updates.
 
-Private DNS is set to AdGuard (`dns.adguard-dns.com`) to block ad and tracker domains. It does not block YouTube ads.
+Ad and tracker domains are blocked by AdGuard DNS set **on the router** (94.140.14.14 / 94.140.15.15), not on the TV. The TV's own strict Private DNS (`dns.adguard-dns.com`) was tried first and dropped: when its encrypted connection hiccups, every name lookup fails, so apps like TizenTube hang on a loading skeleton or say there is no internet while ethernet is up. The TV is back on automatic DNS. AdGuard does not block YouTube ads; TizenTube does that itself.
 
 ## How it's built
 
