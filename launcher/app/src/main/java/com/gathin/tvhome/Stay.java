@@ -23,7 +23,7 @@ import java.util.List;
  * {"mode": "guest" | "home",
  *  "place": "The Ridge", "about": "Light the fire...", "wifi_name": "...", "wifi_password": "...",
  *  "rules": ["No smoking inside", ...], "checkin": "15:00", "checkout": "10:00", "apps": ["com.netflix.ninja", ...],
- *  "door_code": "4821",
+ *  "door_code": "4821", "locked": true, "pin_sha256": "...",
  *  "guest": {"names": "Sarah and Tom", "arrive": "2026-11-14", "depart": "2026-11-17"}}
  * </pre>
  * Between stays (no guest, or today outside arrive..depart) the TV shows only the place: no names, no door code.
@@ -122,6 +122,18 @@ final class Stay {
     private static File file(Context ctx) {
         File dir = Config.dir(ctx);
         return dir == null ? null : new File(dir, FILE_NAME);
+    }
+
+    /** The PIN as stored ("pin_sha256"): never the PIN itself. */
+    static String sha256(String text) {
+        try {
+            byte[] d = java.security.MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8));
+            StringBuilder b = new StringBuilder();
+            for (byte x : d) b.append(String.format("%02x", x));
+            return b.toString();
+        } catch (Exception e) {
+            return "";
+        }
     }
 
     static LocalTime time(String hhmm) {

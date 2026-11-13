@@ -135,7 +135,12 @@ public class GuestActivity extends Activity {
         cl.topMargin = px(16);
         content.addView(cards, cl);
 
-        content.addView(appBar(), lp(-1, -2, 14));
+        android.widget.HorizontalScrollView barScroll = new android.widget.HorizontalScrollView(this);
+        barScroll.setHorizontalScrollBarEnabled(false);
+        barScroll.setClipChildren(false);
+        barScroll.setClipToPadding(false);
+        barScroll.addView(appBar());
+        content.addView(barScroll, lp(-2, -2, 14));
         root.addView(content, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
         setContentView(root);
         fill();
@@ -182,8 +187,8 @@ public class GuestActivity extends Activity {
     // ---- content ---------------------------------------------------------------------------------------
 
     private void fill() {
-        String place = stay.place.isEmpty() ? "Welcome" : stay.place;
-        label.setText(place.toUpperCase(Locale.getDefault()));
+        label.setText(stay.place.toUpperCase(Locale.getDefault()));
+        label.setVisibility(stay.place.isEmpty() ? View.GONE : View.VISIBLE);
         if (stay.staying() && !stay.names.isEmpty()) {
             title.setText((stay.arrivingToday() ? "Welcome, " : greeting() + ", ") + stay.names);
         } else {
@@ -194,6 +199,9 @@ public class GuestActivity extends Activity {
             subtitle.setText(stay.arrivingToday() ? "Check-in from " + Stay.friendly(stay.checkin) + ". Make yourselves at home."
                     : stay.leavingToday() ? "Check-out today by " + Stay.friendly(stay.checkout) + ". Safe travels."
                     : "Night " + stay.night + " of " + stay.nights + " · check-out " + stay.depart.format(day) + " " + Stay.friendly(stay.checkout));
+        } else if (stay.place.isEmpty() && stay.wifiName.isEmpty()) {
+            // Nothing set up yet: say so, instead of an empty welcome.
+            subtitle.setText("Host: choose Host at the end of the row below to finish setting up, or to go back to Home mode.");
         } else {
             subtitle.setText(stay.about);
         }
@@ -256,7 +264,7 @@ public class GuestActivity extends Activity {
                 v.animate().scaleX(f ? 1.04f : 1f).scaleY(f ? 1.04f : 1f).setDuration(150).start();
             });
         }
-        LinearLayout.LayoutParams l = new LinearLayout.LayoutParams(0, -1, 1f);
+        LinearLayout.LayoutParams l = new LinearLayout.LayoutParams(px(214), -1);
         l.rightMargin = px(12);
         box.setLayoutParams(l);
         return box;
@@ -271,6 +279,8 @@ public class GuestActivity extends Activity {
         bar.setPadding(px(6), px(6), px(6), px(6));
         bar.setBackground(glass(0x2EFFFFFF, 24));
         bar.addView(chip(null, "House guide", v -> showRules()));
+        // Last on the row: the host's way out (Menu does the same), behind the PIN once the TV is locked.
+        View hostChip = chip(null, "Host", v -> hostMenu());
         PackageManager pm = getPackageManager();
         List<String> allowed = stay.apps;
         if (allowed.isEmpty()) for (Setup.App a : Setup.apps(this)) if (allowed.size() < 8) allowed.add(a.pkg);
@@ -292,6 +302,7 @@ public class GuestActivity extends Activity {
             bar.addView(c);
             if (shown++ == 0) c.post(c::requestFocus);
         }
+        bar.addView(hostChip);
         return bar;
     }
 
@@ -307,6 +318,7 @@ public class GuestActivity extends Activity {
             c.addView(i, new LinearLayout.LayoutParams(px(22), px(22)));
         }
         TextView t = text(name, 14, Color.WHITE, R.string.font_medium);
+        t.setSingleLine(true);
         t.setPadding(icon != null ? px(8) : 0, 0, 0, 0);
         c.addView(t);
         c.setOnClickListener(open);
@@ -345,18 +357,41 @@ public class GuestActivity extends Activity {
         rulesSheet = scrim;
     }
 
-    /** Menu: the host's way back to Home mode. Phase 2 puts this behind the host's PIN. */
+    /**
+     * Menu or the Host chip: the host's way back to Home mode. While the host has locked the TV to Guest mode
+     * (stay.json "locked", set from the phone page), it asks for the host's PIN first ("pin_sha256").
+     */
     private void hostMenu() {
+        JSONObject j = Stay.json(this);
+        String pinHash = j.optString("pin_sha256", "");
+        if (j.optBoolean("locked") && !pinHash.isEmpty()) {
+            android.widget.EditText pin = new android.widget.EditText(this);
+            pin.setInputType(android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD);
+            pin.setHint("Host PIN");
+            new android.app.AlertDialog.Builder(this)
+                    .setTitle("This TV is locked to Guest mode")
+                    .setMessage("Enter the host PIN to change it.")
+                    .setView(pin)
+                    .setPositiveButton("Unlock", (d, w) -> {
+                        if (Stay.sha256(pin.getText().toString().trim()).equals(pinHash)) switchHome();
+                        else android.widget.Toast.makeText(this, "Wrong PIN", android.widget.Toast.LENGTH_SHORT).show();
+                    })
+                    .setNegativeButton("Cancel", null)
+                    .show();
+            return;
+        }
         new android.app.AlertDialog.Builder(this)
                 .setTitle("Switch to Home mode?")
-                .setMessage("Guests will see the personal home screen instead of the welcome screen.")
-                .setPositiveButton("Switch", (d, w) -> {
-                    Stay.setMode(this, false);
-                    startActivity(new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
-                    finish();
-                })
+                .setMessage("The TV goes back to the personal home screen. You can return to Guest mode from Control Center.")
+                .setPositiveButton("Switch", (d, w) -> switchHome())
                 .setNegativeButton("Cancel", null)
                 .show();
+    }
+
+    private void switchHome() {
+        Stay.setMode(this, false);
+        startActivity(new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        finish();
     }
 
     // ---- weather ---------------------------------------------------------------------------------------

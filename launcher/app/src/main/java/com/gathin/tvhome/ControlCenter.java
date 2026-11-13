@@ -200,8 +200,16 @@ final class ControlCenter implements MediaWatch.Listener {
         LinearLayout row4 = tileRow();
         row4.addView(tile(R.drawable.ic_home_settings, "Guest mode", v -> {
             close();
-            Stay.setMode(activity, true);
-            activity.startActivity(new android.content.Intent(activity, GuestActivity.class));
+            new android.app.AlertDialog.Builder(activity)
+                    .setTitle("Switch to Guest mode?")
+                    .setMessage("The TV shows the welcome screen for Airbnb or rental guests. To come back, choose "
+                            + "Host at the end of its app row, or press Menu.")
+                    .setPositiveButton("Switch", (d, w) -> {
+                        Stay.setMode(activity, true);
+                        activity.startActivity(new android.content.Intent(activity, GuestActivity.class));
+                    })
+                    .setNegativeButton("Cancel", null)
+                    .show();
         }));
         col.addView(row4, lp(ViewGroup.LayoutParams.MATCH_PARENT, 12));
         return p;
