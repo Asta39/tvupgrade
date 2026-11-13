@@ -2,6 +2,14 @@ plugins {
     id 'com.android.application'
 }
 
+// Release key for published APKs (GitHub Releases, Orion Store). It never lives in this repo: the path and password
+// come from ~/.android-keys/tvhome-release.properties, or the same names as environment variables. Without them
+// the release build falls back to the debug key, as before.
+def releaseKey = new Properties()
+def releaseKeyFile = new File(System.getProperty('user.home'), '.android-keys/tvhome-release.properties')
+if (releaseKeyFile.exists()) releaseKeyFile.withInputStream { releaseKey.load(it) }
+def keyValue = { String name -> System.getenv(name) ?: releaseKey.getProperty(name) }
+
 android {
     namespace 'com.gathin.tvhome'
     compileSdk 34
@@ -11,8 +19,19 @@ android {
         applicationId providers.gradleProperty('launcherApplicationId').getOrElse('com.gathin.tvhome')
         minSdk 26
         targetSdk 34
-        versionCode 9
-        versionName '3.0'
+        versionCode 10
+        versionName '1.0.1'
+    }
+
+    signingConfigs {
+        if (keyValue('TVHOME_KEYSTORE')) {
+            release {
+                storeFile file(keyValue('TVHOME_KEYSTORE'))
+                storePassword keyValue('TVHOME_KEYSTORE_PASSWORD')
+                keyAlias keyValue('TVHOME_KEY_ALIAS') ?: 'tvhome'
+                keyPassword keyValue('TVHOME_KEYSTORE_PASSWORD')
+            }
+        }
     }
 
     buildTypes {
@@ -21,8 +40,8 @@ android {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            // Sideloaded over ADB, never published: sign with the debug key so it installs over a debug build.
-            signingConfig signingConfigs.debug
+            // The release key when this machine has it (published builds), else the debug key (local sideloads).
+            signingConfig signingConfigs.findByName('release') ?: signingConfigs.debug
         }
     }
 
