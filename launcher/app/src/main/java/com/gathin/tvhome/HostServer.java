@@ -48,6 +48,9 @@ final class HostServer {
     static volatile String claimCode;
     /** Called on the main thread after the phone changed stay.json. */
     static volatile Runnable onChange;
+    /** When a phone last opened the page, and who to tell (the welcome screen hides its QR code). */
+    static volatile long lastVisit;
+    static volatile Runnable onVisit;
 
     private final Context ctx;
     private final ExecutorService pool = Executors.newFixedThreadPool(4);
@@ -167,6 +170,11 @@ final class HostServer {
 
     private void route(OutputStream out, String method, String path, JSONObject body, boolean host) throws Exception {
         if ("GET".equals(method) && ("/".equals(path) || "/index.html".equals(path))) {
+            lastVisit = System.currentTimeMillis();
+            main.post(() -> {
+                Runnable r = onVisit;
+                if (r != null) r.run();
+            });
             try (InputStream page = ctx.getAssets().open("web/index.html")) {
                 ByteArrayOutputStream b = new ByteArrayOutputStream();
                 byte[] buf = new byte[8192];

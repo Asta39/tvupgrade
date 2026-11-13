@@ -49,6 +49,12 @@ public class GuestActivity extends Activity {
     private ImageView weatherIcon;
     private LinearLayout cards;
     private View rulesSheet, qrView;
+    /**
+     * Whether the guests' QR code is on screen. It shows until a phone opens the page, then tucks into the app row
+     * as a Phone button that brings it back. The host's setup code stays until the TV is claimed.
+     */
+    private boolean qrOpen = true;
+    private long qrSince = System.currentTimeMillis();
     private FrameLayout screen;
     private android.widget.HorizontalScrollView barScroll;
 
@@ -164,6 +170,13 @@ public class GuestActivity extends Activity {
         main.removeCallbacks(minute);
         main.post(minute);
         // The host saved something on the phone: show it now, or hand Home back if they chose Home mode.
+        // A phone opened the page after the code went up: it did its job, so tuck it into the app row.
+        HostServer.onVisit = () -> {
+            if (HostServer.claimCode == null && qrOpen && HostServer.lastVisit > qrSince) {
+                qrOpen = false;
+                fill();
+            }
+        };
         HostServer.onChange = () -> {
             if (!Stay.guestMode(this)) {
                 switchHome();
@@ -179,6 +192,7 @@ public class GuestActivity extends Activity {
         super.onPause();
         main.removeCallbacks(minute);
         HostServer.onChange = null;
+        HostServer.onVisit = null;
     }
 
     @Override
@@ -247,7 +261,7 @@ public class GuestActivity extends Activity {
         }
         // The phone page's code sits in the top right corner, apart from the cards.
         if (qrView != null) screen.removeView(qrView);
-        qrView = qrCard();
+        qrView = HostServer.claimCode != null || qrOpen ? qrCard() : null;
         if (qrView != null) {
             FrameLayout.LayoutParams ql = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.END);
             ql.topMargin = px(36);
@@ -281,13 +295,17 @@ public class GuestActivity extends Activity {
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
         col.setPadding(px(12), 0, 0, 0);
-        TextView h = text(code != null ? "Host setup" : "On your phone", 11, 0xB3FFFFFF, R.string.font_medium);
-        h.setLetterSpacing(0.08f);
+        TextView h = text(code != null ? "Host setup · code " + code : "Remote and house info", 11, 0xB3FFFFFF, R.string.font_medium);
+        h.setLetterSpacing(0.06f);
         col.addView(h);
-        TextView b = text(code != null ? code : "Remote and house info", code != null ? 22 : 15, Color.WHITE, R.string.font_medium);
-        if (code != null) b.setLetterSpacing(0.12f);
+        // Some scanners show the link as text instead of opening it: say what to do with it.
+        String address = url.replaceFirst("^http://", "").replaceAll("/$", "");
+        TextView b = text(address, 17, Color.WHITE, R.string.font_medium);
         col.addView(b, lp(-2, -2, 6));
-        col.addView(text(code != null ? "Scan, then enter this code" : "Scan with your camera", 12, 0xCCFFFFFF, R.string.font_regular), lp(-2, -2, 2));
+        String wifi = stay.wifiName.isEmpty() ? "this TV's Wi-Fi" : stay.wifiName;
+        TextView how = text("1. Join the Wi-Fi " + wifi + "\n2. Scan, or type this into your browser", 12, 0xCCFFFFFF, R.string.font_regular);
+        how.setLineSpacing(px(2), 1f);
+        col.addView(how, lp(-2, -2, 4));
         box.addView(col);
         return box;
     }
@@ -371,6 +389,13 @@ public class GuestActivity extends Activity {
             View c = chip(icon, name, v -> startActivity(go));
             bar.addView(c);
             if (shown++ == 0) c.post(c::requestFocus);
+        }
+        if (HostServer.claimCode == null && !qrOpen) {
+            bar.addView(chip(null, "Phone", v -> {
+                qrOpen = true;
+                qrSince = System.currentTimeMillis();
+                fill();
+            }));
         }
         bar.addView(hostChip);
         return bar;

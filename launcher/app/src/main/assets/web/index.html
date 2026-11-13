@@ -88,7 +88,7 @@ async function api(path, body) {
 }
 
 async function load() {
-  try { state = await api('/api/state'); } catch (e) { app.innerHTML = '<h1>Can’t reach the TV</h1><p class="sub">Make sure your phone is on the same Wi-Fi as the TV, then reload.</p>'; return; }
+  try { state = await api('/api/state'); } catch (e) { app.innerHTML = '<h1>Can’t reach the TV</h1><p class="sub">This page only works on the same Wi-Fi as the TV. Turn off mobile data, join the Wi-Fi shown on the TV, then reload.</p>'; return; }
   if (!state.claimed) return claimView();
   if (state.host) return hostView();
   guestView();
