@@ -1,3 +1,4 @@
+# model: G10_4K_GB_NF_32BIT
 # TCL G10 (G10_4K_GB_NF_32BIT), Android 12, STT2.230203.001 - this TV's applied list
 # Kept by choice: katniss, tv.remote.service, mediashell, airplay/miracast, dreamx, gamebar, ttvs (updates)
 # Undo:  ../scripts/restore.sh <tv ip>

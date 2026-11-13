@@ -393,6 +393,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        // A TV with no theme yet (installed from the APK alone): the welcome steps come first (SetupActivity).
+        if (Setup.needed(this)) startActivity(new Intent(this, SetupActivity.class));
         setContentView(R.layout.activity_main);
         density = getResources().getDisplayMetrics().density;
         // config.xml, overlaid by config.json from a pushed theme (see Config and tools/theme.sh).

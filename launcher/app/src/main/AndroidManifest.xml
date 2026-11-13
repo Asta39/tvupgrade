@@ -241,6 +241,14 @@
             </intent-filter>
         </receiver>
 
+        <!-- This fork: the welcome steps a new TV sees before Home (people, their apps, debugging, clean-up). -->
+        <activity
+            android:name=".SetupActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:screenOrientation="landscape"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen" />
         <!-- This fork: StandBy clock faces, on demand and as the screensaver. -->
         <activity
             android:name=".StandByActivity"
