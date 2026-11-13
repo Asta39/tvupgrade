@@ -199,7 +199,29 @@ cutting it out made the bottom of the digits look broken rather than layered.
 
 The script is [`scripts/make_cutouts.py`](scripts/make_cutouts.py).
 
-## Set it up on your own TV
+## Install on a TV, no computer needed
+
+1. On the TV, install **Downloader** (by AFTVnews) from the Play Store.
+2. In Downloader, open the latest APK from this repo's
+   [Releases](https://github.com/Asta39/tvupgrade/releases/latest) page and install it
+   (allow Downloader to install apps when the TV asks).
+3. Open **Home** from your apps. A short welcome walks you through it:
+
+| | |
+|---|---|
+| ![Welcome](screenshots/setup-welcome.jpg) | ![Pick your apps](screenshots/setup-apps.jpg) |
+| ![Switch on debugging](screenshots/setup-debugging.jpg) | ![Turn off the clutter](screenshots/setup-cleanup.jpg) |
+
+- **Who watches:** one person, or up to four, each with their own home row (profiles).
+- **Main apps:** pick up to eight from the apps already on the TV, in order.
+- **Debugging:** with USB/Network debugging switched on, the app connects to the TV's own ADB and sets itself up:
+  the Home button, Now Playing, Sleep and Night Shift, and the StandBy screensaver. You can skip it.
+- **Clean-up:** offered only on TV models with a tested list (the TCL G10 so far). Apps are turned off, never
+  removed. Other models skip this step: a wrong list can stop a TV from starting.
+
+The theme (nine 4K wallpapers, depth cut-outs, the glass clock) is inside the APK, so it is about 38 MB.
+
+## Set it up on your own TV from a computer
 
 You need: an Android TV / Google TV on the same network, **Developer options → USB debugging** (and Network debugging
 if shown) turned on, Google's `adb`, Python 3, and JDK 17 + the Android SDK for the build.
