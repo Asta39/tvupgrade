@@ -4,6 +4,12 @@
 liquid glass, scenery that stands in front of the time, a row of iOS-style app icons along the bottom, and nothing
 else.
 
+<p align="center">
+  <a href="https://rookieenough.github.io/Orion-Data/app/?id=home"><img src="https://raw.githubusercontent.com/RookieEnough/Orion-Store/refs/heads/main/assets/orion-badge.png" alt="Get it on Orion Store" height="56"></a>
+  &nbsp;
+  <a href="https://github.com/Asta39/tvupgrade/releases/latest"><img src="https://img.shields.io/github/v/release/Asta39/tvupgrade?label=Download%20APK&style=for-the-badge" alt="Download the latest APK" height="56"></a>
+</p>
+
 ![Home screen, golden peak](screenshots/home-3.jpg)
 
 Built on a TCL G10 (Google TV 12) with [Claude Code](https://claude.com/claude-code), starting from
@@ -200,6 +206,11 @@ cutting it out made the bottom of the digits look broken rather than layered.
 The script is [`scripts/make_cutouts.py`](scripts/make_cutouts.py).
 
 ## Install on a TV, no computer needed
+
+**From Orion Store:** open [Home in Orion Store](https://rookieenough.github.io/Orion-Data/app/?id=home)
+(or `orionstore://app/home`) and install. Orion keeps it updated from this repo's releases.
+
+**Or with Downloader:**
 
 1. On the TV, install **Downloader** (by AFTVnews) from the Play Store.
 2. In Downloader, open the latest APK from this repo's
