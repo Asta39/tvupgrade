@@ -241,6 +241,14 @@
             </intent-filter>
         </receiver>
 
+        <!-- This fork: Guest mode's welcome screen, Home while stay.json says "mode": "guest". -->
+        <activity
+            android:name=".GuestActivity"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:excludeFromRecents="true"
+            android:screenOrientation="landscape"
+            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen" />
         <!-- This fork: the welcome steps a new TV sees before Home (people, their apps, debugging, clean-up). -->
         <activity
             android:name=".SetupActivity"

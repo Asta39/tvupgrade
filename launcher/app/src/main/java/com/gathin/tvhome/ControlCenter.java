@@ -196,6 +196,14 @@ final class ControlCenter implements MediaWatch.Listener {
         col.addView(row1, lp(ViewGroup.LayoutParams.MATCH_PARENT, 18));
         col.addView(row2, lp(ViewGroup.LayoutParams.MATCH_PARENT, 12));
         col.addView(row3, lp(ViewGroup.LayoutParams.MATCH_PARENT, 12));
+        // This fork's Guest mode: the welcome screen for an Airbnb or rental becomes Home (GuestActivity).
+        LinearLayout row4 = tileRow();
+        row4.addView(tile(R.drawable.ic_home_settings, "Guest mode", v -> {
+            close();
+            Stay.setMode(activity, true);
+            activity.startActivity(new android.content.Intent(activity, GuestActivity.class));
+        }));
+        col.addView(row4, lp(ViewGroup.LayoutParams.MATCH_PARENT, 12));
         return p;
     }
 

@@ -42,9 +42,15 @@ public class SetupActivity extends Activity {
     private float dp;
     private FrameLayout root;
     private LinearLayout page;
-    /** 0 welcome, 1 people, 2.. one app step per person, then debugging, clean-up (when there is a list), done. */
+    /**
+     * 0 welcome, 1 Home or Guest, 2 people (Home) or the place (Guest), 3.. one app step per person (Guest: the
+     * apps guests may open), then debugging, clean-up (when there is a list), done.
+     */
     private int step;
     private boolean granted, busy;
+    /** Guest mode (an Airbnb or rental TV) instead of a personal Home: chosen on the second step. */
+    private boolean guest;
+    private String placeName = "", wifiName = "", wifiPassword = "";
     private TextView status;
 
     @Override
@@ -85,11 +91,11 @@ public class SetupActivity extends Activity {
     // ---- steps -----------------------------------------------------------------------------------------
 
     private int appSteps() {
-        return people.size();
+        return guest ? 1 : people.size();
     }
 
     private int debugStep() {
-        return 2 + appSteps();
+        return 3 + appSteps();
     }
 
     private int cleanupStep() {
@@ -104,8 +110,11 @@ public class SetupActivity extends Activity {
         page.removeAllViews();
         status = null;
         if (step == 0) welcome();
-        else if (step == 1) who();
-        else if (step < debugStep()) pick(people.get(step - 2));
+        else if (step == 1) mode();
+        else if (step == 2) {
+            if (guest) place();
+            else who();
+        } else if (step < debugStep()) pick(people.get(step - 3));
         else if (step == debugStep()) debugging();
         else if (step == cleanupStep()) cleanUp();
         else done();
@@ -123,6 +132,109 @@ public class SetupActivity extends Activity {
                 + "Setting it up takes about two minutes.");
         space();
         buttons(button("Get started", this::next, true));
+    }
+
+    private void mode() {
+        header("How will this TV be used?", "You can change this later in Control Center.");
+        LinearLayout row = new LinearLayout(this);
+        row.setClipChildren(false);
+        View home = choice("Home", "Your own TV: the clock, your apps, profiles for the people who live here.", () -> {
+            guest = false;
+            next();
+        });
+        View rental = choice("Guest", "For an Airbnb or rental: welcomes guests by name, shows the Wi-Fi, house rules and "
+                + "check-out, and only the apps you allow.", () -> {
+            guest = true;
+            while (people.size() > 1) people.remove(people.size() - 1);
+            next();
+        });
+        row.addView(home);
+        row.addView(rental);
+        page.addView(row);
+        space();
+        (guest ? rental : home).requestFocus();
+    }
+
+    /** A large selectable card for the mode step. */
+    private View choice(String name, String about, Runnable pick) {
+        LinearLayout c = new LinearLayout(this);
+        c.setOrientation(LinearLayout.VERTICAL);
+        c.setPadding(px(26), px(22), px(26), px(22));
+        c.setBackground(pill(0x26FFFFFF, 22));
+        c.setFocusable(true);
+        c.setClickable(true);
+        TextView n = text(name, 26, Color.WHITE, R.string.font_medium);
+        TextView a = text(about, 16, 0xCCFFFFFF, R.string.font_regular);
+        a.setLineSpacing(px(3), 1f);
+        c.addView(n);
+        LinearLayout.LayoutParams al = new LinearLayout.LayoutParams(-1, -2);
+        al.topMargin = px(8);
+        c.addView(a, al);
+        c.setOnFocusChangeListener((v, f) -> {
+            v.setBackground(pill(f ? Color.WHITE : 0x26FFFFFF, 22));
+            n.setTextColor(f ? Color.BLACK : Color.WHITE);
+            a.setTextColor(f ? 0xCC000000 : 0xCCFFFFFF);
+            v.animate().scaleX(f ? 1.03f : 1f).scaleY(f ? 1.03f : 1f).setDuration(140).start();
+        });
+        c.setOnClickListener(v -> pick.run());
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(px(380), -2);
+        lp.rightMargin = px(20);
+        c.setLayoutParams(lp);
+        return c;
+    }
+
+    /** Guest mode: the place's name and the Wi-Fi guests join. Android keeps saved Wi-Fi passwords from apps. */
+    private void place() {
+        header("Your place", "Guests see this on the welcome screen. House rules, door codes and stays come next, "
+                + "from your phone.");
+        if (wifiName.isEmpty()) wifiName = currentWifi();
+        LinearLayout list = new LinearLayout(this);
+        list.setOrientation(LinearLayout.VERTICAL);
+        list.addView(field("Name of your place (e.g. The Ridge)", placeName, false, v -> placeName = v));
+        list.addView(field("Wi-Fi name", wifiName, false, v -> wifiName = v));
+        list.addView(field("Wi-Fi password", wifiPassword, false, v -> wifiPassword = v));
+        page.addView(list);
+        space();
+        buttons(button("Continue", this::next, true));
+    }
+
+    private View field(String hint, String value, boolean secret, java.util.function.Consumer<String> save) {
+        EditText e = new EditText(this);
+        e.setHint(hint);
+        e.setText(value);
+        e.setSingleLine(true);
+        e.setInputType(InputType.TYPE_CLASS_TEXT | (secret ? InputType.TYPE_TEXT_VARIATION_PASSWORD : InputType.TYPE_TEXT_FLAG_CAP_WORDS));
+        e.setImeOptions(EditorInfo.IME_ACTION_DONE);
+        e.setTextColor(Color.WHITE);
+        e.setHintTextColor(0x80FFFFFF);
+        e.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20);
+        e.setTypeface(font(R.string.font_regular));
+        e.setPadding(px(20), px(12), px(20), px(12));
+        e.setBackground(pill(0x26FFFFFF, 14));
+        e.setOnFocusChangeListener((v, f) -> v.setBackground(pill(f ? 0x59FFFFFF : 0x26FFFFFF, 14)));
+        e.addTextChangedListener(new android.text.TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) { }
+            @Override public void onTextChanged(CharSequence s, int a, int b, int c) { }
+            @Override public void afterTextChanged(android.text.Editable s) {
+                save.accept(s.toString());
+            }
+        });
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(px(460), -2);
+        lp.bottomMargin = px(12);
+        e.setLayoutParams(lp);
+        return e;
+    }
+
+    /** The Wi-Fi this TV is on, when Android will say (it needs the location grant); empty otherwise. */
+    private String currentWifi() {
+        try {
+            android.net.wifi.WifiManager wm = getApplicationContext().getSystemService(android.net.wifi.WifiManager.class);
+            String ssid = wm.getConnectionInfo().getSSID();
+            if (ssid == null || ssid.contains("unknown ssid")) return "";
+            return ssid.replace("\"", "");
+        } catch (Exception e) {
+            return "";
+        }
     }
 
     private void who() {
@@ -170,7 +282,9 @@ public class SetupActivity extends Activity {
 
     private void pick(Setup.Person p) {
         String whose = people.size() == 1 ? "your" : (p.name.trim().isEmpty() ? "this person's" : p.name.trim() + "'s");
-        header("Pick " + whose + " main apps", "Up to " + Setup.MAX_APPS + ", in the order you want them on the home row. "
+        if (guest) header("Apps guests can open", "Up to " + Setup.MAX_APPS + ", in order. Guests see only these on the "
+                + "welcome screen.");
+        else header("Pick " + whose + " main apps", "Up to " + Setup.MAX_APPS + ", in the order you want them on the home row. "
                 + "Every other app stays one press below.");
         // Continue sits above the grid, one press Up from the first row, not below every app on the TV.
         TextView count = text("", 16, 0xCCFFFFFF, R.string.font_medium);
@@ -302,7 +416,10 @@ public class SetupActivity extends Activity {
     }
 
     private void done() {
-        header("All set", granted
+        header("All set", guest
+                ? "The welcome screen is ready. Next, open the host page on your phone to add house rules, door codes "
+                + "and your guests' stays. Press Menu on the welcome screen to switch back to Home mode."
+                : granted
                 ? "Press the Home button any time to come back here. The gear at the top right opens Control Center."
                 : "Home is ready. Without debugging, the Home button may still open the old home screen: open this "
                 + "app from your apps list instead.");
@@ -316,6 +433,13 @@ public class SetupActivity extends Activity {
             new Thread(() -> {
                 try {
                     Setup.write(this, people);
+                    if (guest) {
+                        org.json.JSONObject j = Stay.json(this);
+                        j.put("mode", "guest").put("place", placeName.trim()).put("wifi_name", wifiName.trim())
+                                .put("wifi_password", wifiPassword.trim())
+                                .put("apps", new org.json.JSONArray(people.get(0).apps));
+                        Stay.write(this, j);
+                    }
                     main.post(() -> {
                         startActivity(new Intent(this, MainActivity.class).addFlags(
                                 Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK));

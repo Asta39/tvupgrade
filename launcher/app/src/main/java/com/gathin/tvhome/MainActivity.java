@@ -395,6 +395,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         super.onCreate(savedInstanceState);
         // A TV with no theme yet (installed from the APK alone): the welcome steps come first (SetupActivity).
         if (Setup.needed(this)) startActivity(new Intent(this, SetupActivity.class));
+        // Guest mode (an Airbnb or rental TV): the welcome screen is Home (GuestActivity, Stay).
+        else if (Stay.guestMode(this)) startActivity(new Intent(this, GuestActivity.class));
         setContentView(R.layout.activity_main);
         density = getResources().getDisplayMetrics().density;
         // config.xml, overlaid by config.json from a pushed theme (see Config and tools/theme.sh).
@@ -971,6 +973,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     protected void onResume() {
         super.onResume();
+        if (Stay.guestMode(this) && !Setup.needed(this)) {
+            startActivity(new Intent(this, GuestActivity.class).addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION));
+            overridePendingTransition(0, 0);
+        }
         // A festival that started or ended while Home was in the background: rebuild with or without it.
         if (festive != festival.active(LocalDate.now())) {
             recreate();
