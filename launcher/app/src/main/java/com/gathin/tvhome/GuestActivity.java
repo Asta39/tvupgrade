@@ -48,7 +48,9 @@ public class GuestActivity extends Activity {
     private TextView label, title, subtitle, weatherTemp, weatherText;
     private ImageView weatherIcon;
     private LinearLayout cards;
-    private View rulesSheet;
+    private View rulesSheet, qrView;
+    private FrameLayout screen;
+    private android.widget.HorizontalScrollView barScroll;
 
     private final Runnable minute = new Runnable() {
         @Override
@@ -135,14 +137,17 @@ public class GuestActivity extends Activity {
         cl.topMargin = px(16);
         content.addView(cards, cl);
 
-        android.widget.HorizontalScrollView barScroll = new android.widget.HorizontalScrollView(this);
+        barScroll = new android.widget.HorizontalScrollView(this);
         barScroll.setHorizontalScrollBarEnabled(false);
         barScroll.setClipChildren(false);
         barScroll.setClipToPadding(false);
         barScroll.addView(appBar());
         content.addView(barScroll, lp(-2, -2, 14));
         root.addView(content, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
+        screen = root;
         setContentView(root);
+        // The phone page: claiming the TV as host, then the host's and guests' pages (HostServer).
+        HostServer.start(this);
         fill();
         fetchWeather();
     }
@@ -158,12 +163,22 @@ public class GuestActivity extends Activity {
         }
         main.removeCallbacks(minute);
         main.post(minute);
+        // The host saved something on the phone: show it now, or hand Home back if they chose Home mode.
+        HostServer.onChange = () -> {
+            if (!Stay.guestMode(this)) {
+                switchHome();
+                return;
+            }
+            stay = Stay.load(this);
+            fill();
+        };
     }
 
     @Override
     protected void onPause() {
         super.onPause();
         main.removeCallbacks(minute);
+        HostServer.onChange = null;
     }
 
     @Override
@@ -199,9 +214,11 @@ public class GuestActivity extends Activity {
             subtitle.setText(stay.arrivingToday() ? "Check-in from " + Stay.friendly(stay.checkin) + ". Make yourselves at home."
                     : stay.leavingToday() ? "Check-out today by " + Stay.friendly(stay.checkout) + ". Safe travels."
                     : "Night " + stay.night + " of " + stay.nights + " · check-out " + stay.depart.format(day) + " " + Stay.friendly(stay.checkout));
+        } else if (HostServer.claimCode != null) {
+            // Nobody has claimed this TV yet: point the owner at the QR code.
+            subtitle.setText("Host: scan the code with your phone to set up this TV. To go back to Home mode, choose Host at the end of the row.");
         } else if (stay.place.isEmpty() && stay.wifiName.isEmpty()) {
-            // Nothing set up yet: say so, instead of an empty welcome.
-            subtitle.setText("Host: choose Host at the end of the row below to finish setting up, or to go back to Home mode.");
+            subtitle.setText("Host: add your place, Wi-Fi and house rules from the host page on your phone.");
         } else {
             subtitle.setText(stay.about);
         }
@@ -223,9 +240,62 @@ public class GuestActivity extends Activity {
         cards.addView(weather);
         showWeather();
         if (!stay.doorCode.isEmpty()) cards.addView(card("Door code", stay.doorCode, "During your stay", null));
-        if (!stay.rules.isEmpty()) {
-            cards.addView(card("House rules", stay.rules.size() == 1 ? "1 rule" : stay.rules.size() + " rules", "Press OK to read", v -> showRules()));
+        // Fewer cards keep their width; more share the row.
+        for (int i = 0; i < cards.getChildCount(); i++) {
+            View c = cards.getChildAt(i);
+            c.setLayoutParams(cards.getChildCount() >= 3 ? weighted() : c.getLayoutParams());
         }
+        // The phone page's code sits in the top right corner, apart from the cards.
+        if (qrView != null) screen.removeView(qrView);
+        qrView = qrCard();
+        if (qrView != null) {
+            FrameLayout.LayoutParams ql = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.END);
+            ql.topMargin = px(36);
+            ql.rightMargin = px(40);
+            screen.addView(qrView, ql);
+        }
+        // The host may have changed which apps guests can open.
+        if (barScroll != null && barScroll.getChildCount() > 0) {
+            barScroll.removeAllViews();
+            barScroll.addView(appBar());
+        }
+    }
+
+    /**
+     * The phone page's QR code: the host's setup link (with the code on screen) until the TV is claimed, then the
+     * page guests open for the remote and house info.
+     */
+    private View qrCard() {
+        String url = HostServer.url(this);
+        if (url == null) return null;
+        String code = HostServer.claimCode;
+        Bitmap bmp = HostQr.bitmap(code != null ? url + "#claim=" + code : url, px(88));
+        if (bmp == null) return null;
+        LinearLayout box = new LinearLayout(this);
+        box.setGravity(Gravity.CENTER_VERTICAL);
+        box.setPadding(px(10), px(10), px(16), px(10));
+        box.setBackground(glass(0x38FFFFFF, 18));
+        ImageView q = new ImageView(this);
+        q.setImageBitmap(bmp);
+        box.addView(q, new LinearLayout.LayoutParams(px(88), px(88)));
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        col.setPadding(px(12), 0, 0, 0);
+        TextView h = text(code != null ? "Host setup" : "On your phone", 11, 0xB3FFFFFF, R.string.font_medium);
+        h.setLetterSpacing(0.08f);
+        col.addView(h);
+        TextView b = text(code != null ? code : "Remote and house info", code != null ? 22 : 15, Color.WHITE, R.string.font_medium);
+        if (code != null) b.setLetterSpacing(0.12f);
+        col.addView(b, lp(-2, -2, 6));
+        col.addView(text(code != null ? "Scan, then enter this code" : "Scan with your camera", 12, 0xCCFFFFFF, R.string.font_regular), lp(-2, -2, 2));
+        box.addView(col);
+        return box;
+    }
+
+    private LinearLayout.LayoutParams weighted() {
+        LinearLayout.LayoutParams l = new LinearLayout.LayoutParams(0, -1, 1f);
+        l.rightMargin = px(12);
+        return l;
     }
 
     private String greeting() {

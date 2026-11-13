@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0b0f">
+<title>Home for TV</title>
+<style>
+  :root {
+    --bg: #0b0b0f; --card: #1c1c1e; --card2: #2c2c2e; --line: rgba(255,255,255,.08);
+    --text: #fff; --dim: rgba(235,235,245,.6); --accent: #0a84ff; --good: #30d158; --bad: #ff453a;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", Roboto, "Segoe UI", sans-serif; }
+  main { max-width: 560px; margin: 0 auto; padding: 24px 16px calc(96px + env(safe-area-inset-bottom)); }
+  h1 { font-size: 32px; line-height: 1.1; letter-spacing: -.02em; margin: 8px 0 6px; }
+  h2 { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); margin: 28px 4px 8px; }
+  p.sub { color: var(--dim); margin: 0 0 8px; }
+  .card { background: var(--card); border-radius: 18px; padding: 4px 16px; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 0; border-bottom: 1px solid var(--line); }
+  .row:last-child { border-bottom: 0; }
+  .row label { color: var(--dim); font-size: 14px; flex: 0 0 auto; }
+  .row .val { text-align: right; font-weight: 600; word-break: break-word; }
+  input, textarea { width: 100%; background: var(--card2); color: var(--text); border: 0; border-radius: 12px;
+    padding: 12px 14px; font: inherit; outline: none; }
+  input:focus, textarea:focus { box-shadow: 0 0 0 2px var(--accent); }
+  textarea { min-height: 120px; resize: vertical; }
+  .field { padding: 10px 0; }
+  .field span { display: block; font-size: 13px; color: var(--dim); margin: 0 0 6px 2px; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  button { font: inherit; border: 0; border-radius: 14px; padding: 13px 18px; font-weight: 600; cursor: pointer;
+    background: var(--card2); color: var(--text); }
+  button.primary { background: #fff; color: #000; width: 100%; }
+  button.link { background: none; color: var(--accent); padding: 8px 0; }
+  button:active { transform: scale(.98); }
+  .seg { display: grid; grid-template-columns: 1fr 1fr; background: var(--card2); border-radius: 12px; padding: 3px; }
+  .seg button { background: none; padding: 9px; border-radius: 10px; color: var(--dim); }
+  .seg button.on { background: #fff; color: #000; }
+  .switch { position: relative; width: 51px; height: 31px; flex: 0 0 auto; }
+  .switch input { display: none; }
+  .switch i { position: absolute; inset: 0; background: #39393d; border-radius: 31px; transition: .2s; }
+  .switch i:after { content: ""; position: absolute; left: 2px; top: 2px; width: 27px; height: 27px; border-radius: 50%;
+    background: #fff; transition: .2s; }
+  .switch input:checked + i { background: var(--good); }
+  .switch input:checked + i:after { transform: translateX(20px); }
+  .big { font-size: 34px; font-weight: 700; letter-spacing: .08em; }
+  .apps { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 12px 0; }
+  .apps label { display: flex; gap: 8px; align-items: center; background: var(--card2); border-radius: 12px; padding: 10px 12px;
+    font-size: 14px; }
+  .apps input { width: auto; }
+  .pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 16px 0; place-items: center; }
+  .pad button { width: 72px; height: 72px; border-radius: 50%; font-size: 22px; }
+  .pad .ok { background: #fff; color: #000; font-size: 16px; }
+  .keys { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding-bottom: 14px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 0; }
+  .chips button { padding: 10px 14px; }
+  .bar { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    background: linear-gradient(transparent, var(--bg) 30%); }
+  .bar div { max-width: 560px; margin: 0 auto; }
+  .toast { position: fixed; left: 50%; top: 16px; transform: translateX(-50%); background: #fff; color: #000; padding: 10px 16px;
+    border-radius: 12px; font-weight: 600; opacity: 0; transition: .25s; pointer-events: none; z-index: 9; }
+  .toast.show { opacity: 1; }
+  .err { color: var(--bad); font-size: 14px; min-height: 20px; margin: 8px 4px 0; }
+  .hide { display: none !important; }
+  .muted { color: var(--dim); font-size: 14px; }
+  ul.rules { margin: 0; padding: 12px 0 12px 20px; }
+  ul.rules li { padding: 4px 0; }
+</style>
+</head>
+<body>
+<div class="toast" id="toast"></div>
+<main id="app"><p class="muted">Loading…</p></main>
+<script>
+const $ = s => document.querySelector(s);
+const app = $('#app');
+let session = localStorage.getItem('tvhome-session') || '';
+let state = {};
+
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function toast(t) { const e = $('#toast'); e.textContent = t; e.classList.add('show'); setTimeout(() => e.classList.remove('show'), 1800); }
+async function api(path, body) {
+  const r = await fetch(path, { method: body ? 'POST' : 'GET', headers: { 'Content-Type': 'application/json', 'X-Session': session },
+    body: body ? JSON.stringify(body) : undefined });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || 'Something went wrong.');
+  return j;
+}
+
+async function load() {
+  try { state = await api('/api/state'); } catch (e) { app.innerHTML = '<h1>Can’t reach the TV</h1><p class="sub">Make sure your phone is on the same Wi-Fi as the TV, then reload.</p>'; return; }
+  if (!state.claimed) return claimView();
+  if (state.host) return hostView();
+  guestView();
+}
+
+// ---- claim: the first phone with the TV's code becomes the host ----------------------------------------
+function claimView() {
+  const code = (location.hash.match(/claim=(\d{6})/) || [])[1] || '';
+  app.innerHTML = `
+    <h1>Set up this TV</h1>
+    <p class="sub">You’ll be the host. Guests won’t see this page.</p>
+    <h2>Code on the TV</h2>
+    <div class="card"><div class="field"><input id="code" inputmode="numeric" maxlength="6" placeholder="6-digit code" value="${esc(code)}"></div></div>
+    <h2>Choose a host PIN</h2>
+    <div class="card">
+      <div class="field"><input id="pin" type="password" inputmode="numeric" maxlength="8" placeholder="4 to 8 digits"></div>
+      <div class="field"><input id="pin2" type="password" inputmode="numeric" maxlength="8" placeholder="Same PIN again"></div>
+    </div>
+    <p class="err" id="err"></p>
+    <div class="bar"><div><button class="primary" id="go">Become the host</button></div></div>`;
+  $('#go').onclick = async () => {
+    const pin = $('#pin').value.trim();
+    if (pin !== $('#pin2').value.trim()) return $('#err').textContent = 'The two PINs don’t match.';
+    try {
+      const r = await api('/api/claim', { code: $('#code').value.trim(), pin });
+      session = r.session; localStorage.setItem('tvhome-session', session);
+      history.replaceState(null, '', '/'); toast('You’re the host'); load();
+    } catch (e) { $('#err').textContent = e.message; }
+  };
+}
+
+// ---- guest ---------------------------------------------------------------------------------------------
+function guestView() {
+  const s = state;
+  const hello = s.staying && s.names ? `Welcome, ${esc(s.names)}` : (s.place ? `Welcome to ${esc(s.place)}` : 'Welcome');
+  app.innerHTML = `
+    ${s.place ? `<p class="muted">${esc(s.place).toUpperCase()}</p>` : ''}
+    <h1>${hello}</h1>
+    <p class="sub">${s.staying ? (s.arriving ? `Check-in from ${esc(s.checkin)}. Make yourselves at home.`
+      : s.leaving ? `Check-out today by ${esc(s.checkout)}. Safe travels.`
+      : `Night ${s.night} of ${s.nights} · check-out ${esc(s.checkout)}`) : esc(s.about)}</p>
+    ${s.wifi_name ? `<h2>Wi-Fi</h2><div class="card">
+      <div class="row"><label>Network</label><div class="val">${esc(s.wifi_name)}</div></div>
+      ${s.wifi_password ? `<div class="row"><label>Password</label><div class="val">${esc(s.wifi_password)}</div></div>` : ''}
+      ${s.wifi_password ? `<div class="row"><button class="link" id="copy">Copy password</button></div>` : ''}</div>` : ''}
+    ${s.door_code ? `<h2>Door code</h2><div class="card"><div class="row"><div class="big">${esc(s.door_code)}</div><div class="muted">During your stay</div></div></div>` : ''}
+    <h2>Check-in and out</h2><div class="card">
+      <div class="row"><label>Check-in from</label><div class="val">${esc(s.checkin)}</div></div>
+      <div class="row"><label>Check-out by</label><div class="val">${esc(s.checkout)}</div></div></div>
+    ${s.rules.length ? `<h2>House rules</h2><div class="card"><ul class="rules">${s.rules.map(r => `<li>${esc(r)}</li>`).join('')}</ul></div>` : ''}
+    ${remoteHtml()}
+    <p style="text-align:center;margin-top:28px"><button class="link" id="hostin">Host sign-in</button></p>`;
+  if ($('#copy')) $('#copy').onclick = () => navigator.clipboard?.writeText(s.wifi_password).then(() => toast('Copied'));
+  wireRemote();
+  $('#hostin').onclick = signIn;
+}
+
+function signIn() {
+  app.innerHTML = `<h1>Host sign-in</h1><p class="sub">Enter your host PIN.</p>
+    <div class="card"><div class="field"><input id="pin" type="password" inputmode="numeric" maxlength="8" placeholder="PIN" autofocus></div></div>
+    <p class="err" id="err"></p>
+    <div class="bar"><div><button class="primary" id="go">Sign in</button><p style="text-align:center"><button class="link" id="back">Back</button></p></div></div>`;
+  $('#go').onclick = async () => {
+    try { const r = await api('/api/login', { pin: $('#pin').value.trim() }); session = r.session; localStorage.setItem('tvhome-session', session); load(); }
+    catch (e) { $('#err').textContent = e.message; }
+  };
+  $('#back').onclick = load;
+}
+
+// ---- remote (guest and host) ---------------------------------------------------------------------------
+function remoteHtml() {
+  const s = state;
+  if (!s.remote) return '';
+  return `<h2>Remote</h2><div class="card">
+    ${s.keys ? `<div class="pad">
+      <span></span><button data-k="up">▲</button><span></span>
+      <button data-k="left">◀</button><button class="ok" data-k="ok">OK</button><button data-k="right">▶</button>
+      <span></span><button data-k="down">▼</button><span></span></div>
+    <div class="keys"><button data-k="back">Back</button><button data-k="home">Home</button><button data-k="playpause">Play/Pause</button>
+      <button data-k="voldown">Vol −</button><button data-k="mute">Mute</button><button data-k="volup">Vol +</button></div>`
+    : `<p class="muted" style="padding:12px 0">Buttons need debugging switched on in the TV's setup. Apps still open from here.</p>`}
+    ${s.apps.length ? `<div class="chips">${s.apps.map(a => `<button data-app="${esc(a.pkg)}">${esc(a.label)}</button>`).join('')}</div>` : ''}
+  </div>`;
+}
+function wireRemote() {
+  document.querySelectorAll('[data-k]').forEach(b => b.onclick = () => { navigator.vibrate?.(8); api('/api/remote', { key: b.dataset.k }).catch(e => toast(e.message)); });
+  document.querySelectorAll('[data-app]').forEach(b => b.onclick = () => api('/api/remote', { app: b.dataset.app }).then(() => toast('Opening…')).catch(e => toast(e.message)));
+}
+
+// ---- host ----------------------------------------------------------------------------------------------
+async function hostView() {
+  let d, apps;
+  try { d = await api('/api/host'); apps = (await api('/api/apps')).apps; }
+  catch (e) { session = ''; localStorage.removeItem('tvhome-session'); return load(); }
+  const g = d.guest || {};
+  const allowed = new Set(d.apps || []);
+  const today = new Date().toISOString().slice(0, 10);
+  app.innerHTML = `
+    <p class="muted">HOST</p><h1>${esc(d.place || 'Your TV')}</h1>
+    <p class="sub">Changes show on the TV as soon as you save.</p>
+
+    <h2>TV mode</h2><div class="card">
+      <div class="field"><div class="seg"><button data-mode="home">Home</button><button data-mode="guest">Guest</button></div></div>
+      <div class="row"><div><div>Lock to Guest mode</div><div class="muted">Switching back on the TV needs your PIN</div></div>
+        <label class="switch"><input type="checkbox" id="locked" ${d.locked ? 'checked' : ''}><i></i></label></div>
+      <div class="row"><div><div>Guest remote</div><div class="muted">Guests can control the TV from their phone</div></div>
+        <label class="switch"><input type="checkbox" id="remote" ${d.guest_remote !== false ? 'checked' : ''}><i></i></label></div>
+    </div>
+
+    <h2>Current stay</h2><div class="card">
+      <div class="field"><span>Guest names</span><input id="names" placeholder="e.g. Sarah and Tom" value="${esc(g.names)}"></div>
+      <div class="two field"><div><span>Arrive</span><input id="arrive" type="date" value="${esc(g.arrive || today)}"></div>
+        <div><span>Depart</span><input id="depart" type="date" value="${esc(g.depart || '')}"></div></div>
+      <div class="field"><span>Door code (shown only during the stay)</span><input id="door" inputmode="numeric" value="${esc(d.door_code)}"></div>
+      <div class="row"><button class="link" id="endstay">Clear this stay</button></div>
+    </div>
+
+    <h2>Your place</h2><div class="card">
+      <div class="field"><span>Name</span><input id="place" placeholder="e.g. The Ridge" value="${esc(d.place)}"></div>
+      <div class="field"><span>A line about it (shown between stays)</span><input id="about" value="${esc(d.about)}"></div>
+      <div class="two field"><div><span>Wi-Fi name</span><input id="wifi" value="${esc(d.wifi_name)}"></div>
+        <div><span>Wi-Fi password</span><input id="wifipw" value="${esc(d.wifi_password)}"></div></div>
+      <div class="two field"><div><span>Check-in from</span><input id="cin" type="time" value="${esc(d.checkin || '15:00')}"></div>
+        <div><span>Check-out by</span><input id="cout" type="time" value="${esc(d.checkout || '10:00')}"></div></div>
+    </div>
+
+    <h2>House rules</h2><div class="card"><div class="field"><textarea id="rules" placeholder="One rule per line">${esc((d.rules || []).join('\n'))}</textarea></div></div>
+
+    <h2>Apps guests can open</h2><div class="card"><div class="apps">
+      ${apps.map(a => `<label><input type="checkbox" value="${esc(a.pkg)}" ${allowed.has(a.pkg) ? 'checked' : ''}>${esc(a.label)}</label>`).join('')}
+    </div></div>
+
+    ${remoteHtml()}
+
+    <h2>Host PIN</h2><div class="card">
+      <div class="field"><input id="newpin" type="password" inputmode="numeric" maxlength="8" placeholder="New PIN (4 to 8 digits)"></div>
+      <div class="row"><button class="link" id="setpin">Change PIN</button><button class="link" id="signout">Sign out</button></div>
+    </div>
+    <p class="err" id="err"></p>
+    <div class="bar"><div><button class="primary" id="save">Save</button></div></div>`;
+
+  let mode = d.mode === 'home' ? 'home' : 'guest';
+  const segs = document.querySelectorAll('[data-mode]');
+  const paint = () => segs.forEach(b => b.classList.toggle('on', b.dataset.mode === mode));
+  segs.forEach(b => b.onclick = () => { mode = b.dataset.mode; paint(); });
+  paint();
+  wireRemote();
+
+  $('#endstay').onclick = () => { $('#names').value = ''; $('#depart').value = ''; $('#door').value = ''; toast('Cleared — tap Save'); };
+  $('#save').onclick = async () => {
+    const names = $('#names').value.trim();
+    if (names && !$('#depart').value) return $('#err').textContent = 'Add the depart date for this stay.';
+    if (names && $('#depart').value < $('#arrive').value) return $('#err').textContent = 'Depart must be after arrive.';
+    const body = {
+      mode, locked: $('#locked').checked, guest_remote: $('#remote').checked,
+      guest: names ? { names, arrive: $('#arrive').value, depart: $('#depart').value } : null,
+      door_code: $('#door').value, place: $('#place').value, about: $('#about').value,
+      wifi_name: $('#wifi').value, wifi_password: $('#wifipw').value,
+      checkin: $('#cin').value || '15:00', checkout: $('#cout').value || '10:00',
+      rules: $('#rules').value.split('\n').map(s => s.trim()).filter(Boolean),
+      apps: [...document.querySelectorAll('.apps input:checked')].map(i => i.value),
+    };
+    try { await api('/api/host', body); $('#err').textContent = ''; toast('Saved to the TV'); state = await api('/api/state'); }
+    catch (e) { $('#err').textContent = e.message; }
+  };
+  $('#setpin').onclick = async () => {
+    try { await api('/api/pin', { pin: $('#newpin').value.trim() }); $('#newpin').value = ''; toast('PIN changed'); }
+    catch (e) { $('#err').textContent = e.message; }
+  };
+  $('#signout').onclick = () => { session = ''; localStorage.removeItem('tvhome-session'); load(); };
+}
+
+load();
+</script>
+</body>
+</html>

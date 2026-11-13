@@ -173,8 +173,10 @@ final class LocalAdb implements AutoCloseable {
         KeyFactory factory = KeyFactory.getInstance("RSA");
         if (file.exists()) {
             PrivateKey priv = factory.generatePrivate(new PKCS8EncodedKeySpec(Files.readAllBytes(file.toPath())));
-            java.security.interfaces.RSAPrivateCrtKey crt = (java.security.interfaces.RSAPrivateCrtKey) priv;
-            return new KeyPair(factory.generatePublic(new RSAPublicKeySpec(crt.getModulus(), crt.getPublicExponent())), priv);
+            // Android's provider hands back a plain RSA private key (no CRT fields): rebuild the public half from
+            // the modulus and the generator's fixed public exponent, 65537.
+            BigInteger modulus = ((java.security.interfaces.RSAPrivateKey) priv).getModulus();
+            return new KeyPair(factory.generatePublic(new RSAPublicKeySpec(modulus, BigInteger.valueOf(65537))), priv);
         }
         KeyPairGenerator gen = KeyPairGenerator.getInstance("RSA");
         gen.initialize(2048);

@@ -397,6 +397,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (Setup.needed(this)) startActivity(new Intent(this, SetupActivity.class));
         // Guest mode (an Airbnb or rental TV): the welcome screen is Home (GuestActivity, Stay).
         else if (Stay.guestMode(this)) startActivity(new Intent(this, GuestActivity.class));
+        // A host has claimed this TV: keep the phone page up, so they can switch to Guest mode from it.
+        if (!Stay.json(this).optString("pin_sha256", "").isEmpty()) HostServer.start(this);
         setContentView(R.layout.activity_main);
         density = getResources().getDisplayMetrics().density;
         // config.xml, overlaid by config.json from a pushed theme (see Config and tools/theme.sh).
