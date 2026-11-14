@@ -119,9 +119,12 @@ final class HostServer {
             String[] lines = head.split("\r\n");
             String[] first = lines[0].split(" ");
             if (first.length < 2) return;
-            String method = first[0], path = first[1];
+            String method = first[0], path = first[1], query = "";
             int q = path.indexOf('?');
-            if (q >= 0) path = path.substring(0, q);
+            if (q >= 0) {
+                query = path.substring(q + 1);
+                path = path.substring(0, q);
+            }
             Map<String, String> headers = new HashMap<>();
             for (int i = 1; i < lines.length; i++) {
                 int c = lines[i].indexOf(':');
@@ -151,6 +154,10 @@ final class HostServer {
                 }
             }
             boolean host = authorized(headers.get("x-session"));
+            if ("GET".equals(method) && "/api/icon".equals(path)) {
+                icon(socket.getOutputStream(), param(query, "pkg"));
+                return;
+            }
             route(socket.getOutputStream(), method, path, json, host);
         } catch (Exception ignored) {
         }
@@ -198,7 +205,14 @@ final class HostServer {
                 if (!host) break;
                 JSONObject j = Stay.json(ctx);
                 j.remove("pin_sha256");
+                // The AI key is write-only: the page only learns whether one is set.
+                j.put("ai_configured", !j.optString("ai_key", "").isEmpty());
+                j.remove("ai_key");
                 json(out, 200, j);
+                return;
+            case "POST /api/ask":
+                if (!host && !"guest".equals(Stay.json(ctx).optString("mode"))) break;
+                json(out, 200, ask(body.optString("q", "")));
                 return;
             case "POST /api/host":
                 if (!host) break;
@@ -339,7 +353,12 @@ final class HostServer {
                 .put("night", stay.night).put("nights", stay.nights)
                 .put("arriving", stay.arrivingToday()).put("leaving", stay.leavingToday())
                 .put("remote", guestRemote() || host)
-                .put("keys", adbReady());
+                .put("keys", adbReady())
+                .put("ai", !s.optString("ai_key", "").isEmpty())
+                .put("weather", weather())
+                .put("checkout_day", stay.staying() ? stay.depart.getDayOfWeek().getDisplayName(java.time.format.TextStyle.SHORT, Locale.getDefault()) : "")
+                .put("arrive", stay.staying() ? stay.arrive.toString() : "")
+                .put("depart", stay.staying() ? stay.depart.toString() : "");
         o.put("apps", allowedApps());
         return o;
     }
@@ -358,6 +377,9 @@ final class HostServer {
                     .put("arrive", g.optString("arrive")).put("depart", g.optString("depart")));
         }
         if (b.has("locked")) s.put("locked", b.optBoolean("locked"));
+        // The AI key: set when a new one is sent, removed on request, otherwise kept as it is.
+        if (!b.optString("ai_key", "").trim().isEmpty()) s.put("ai_key", b.optString("ai_key").trim());
+        if (b.optBoolean("ai_key_clear")) s.remove("ai_key");
         if (b.has("guest_remote")) s.put("guest_remote", b.optBoolean("guest_remote"));
         if (b.has("mode")) s.put("mode", "home".equals(b.optString("mode")) ? "home" : "guest");
         Stay.write(ctx, s);
@@ -399,6 +421,135 @@ final class HostServer {
             }
         }
         return out;
+    }
+
+    private static String param(String query, String name) {
+        for (String kv : query.split("&")) {
+            int e = kv.indexOf('=');
+            if (e > 0 && kv.substring(0, e).equals(name)) {
+                try {
+                    return java.net.URLDecoder.decode(kv.substring(e + 1), "UTF-8");
+                } catch (Exception ignored) {
+                }
+            }
+        }
+        return "";
+    }
+
+    /** An installed app's icon as a PNG, for the phone page's app buttons. Icons are not private. */
+    private void icon(OutputStream out, String pkg) throws Exception {
+        try {
+            android.graphics.drawable.Drawable d = ctx.getPackageManager().getApplicationIcon(pkg);
+            android.graphics.Bitmap b = android.graphics.Bitmap.createBitmap(96, 96, android.graphics.Bitmap.Config.ARGB_8888);
+            android.graphics.Canvas c = new android.graphics.Canvas(b);
+            d.setBounds(0, 0, 96, 96);
+            d.draw(c);
+            ByteArrayOutputStream png = new ByteArrayOutputStream();
+            b.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, png);
+            reply(out, 200, "image/png", png.toByteArray());
+        } catch (Exception e) {
+            reply(out, 404, "text/plain", "no icon");
+        }
+    }
+
+    // ---- weather, for the phone's welcome --------------------------------------------------------------
+
+    private JSONObject weather;
+    private long weatherAt;
+
+    private synchronized JSONObject weather() {
+        if (weather != null && System.currentTimeMillis() - weatherAt < 30 * 60_000) return weather;
+        if (Config.weatherLat == 0 && Config.weatherLon == 0) return new JSONObject();
+        try {
+            String url = "https://api.open-meteo.com/v1/forecast?latitude=" + Config.weatherLat + "&longitude=" + Config.weatherLon
+                    + "&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min&forecast_days=1&timezone=auto";
+            JSONObject j = new JSONObject(get(url, null, null));
+            JSONObject now = j.getJSONObject("current");
+            JSONObject day = j.getJSONObject("daily");
+            int code = now.optInt("weather_code");
+            weather = new JSONObject().put("temp", Math.round(now.optDouble("temperature_2m")))
+                    .put("text", Weather.describe(code))
+                    .put("hi", Math.round(day.getJSONArray("temperature_2m_max").optDouble(0)))
+                    .put("lo", Math.round(day.getJSONArray("temperature_2m_min").optDouble(0)))
+                    .put("city", Config.weatherCity);
+            weatherAt = System.currentTimeMillis();
+        } catch (Exception e) {
+            if (weather == null) weather = new JSONObject();
+        }
+        return weather;
+    }
+
+    // ---- ask about the area (Groq) ---------------------------------------------------------------------
+
+    /** Groq retires models often: try these in order, skipping any Groq says it no longer serves. */
+    private static final String[] MODELS = {"openai/gpt-oss-20b", "openai/gpt-oss-120b", "llama-3.3-70b-versatile"};
+    private final java.util.ArrayDeque<Long> asks = new java.util.ArrayDeque<>();
+
+    private JSONObject ask(String question) throws Exception {
+        question = question.trim();
+        if (question.isEmpty() || question.length() > 300) return new JSONObject().put("error", "Ask a short question.");
+        String key = Stay.json(ctx).optString("ai_key", "");
+        if (key.isEmpty()) return new JSONObject().put("error", "The host hasn't turned this on.");
+        synchronized (asks) {
+            long now = System.currentTimeMillis();
+            while (!asks.isEmpty() && now - asks.peekFirst() > 10 * 60_000) asks.pollFirst();
+            if (asks.size() >= 30) return new JSONObject().put("error", "Lots of questions just now. Try again in a few minutes.");
+            asks.addLast(now);
+        }
+        Stay stay = Stay.load(ctx);
+        String where = Config.weatherCity.isEmpty() ? "" : " in or near " + Config.weatherCity;
+        String system = "You are a friendly local concierge for guests staying at " + (stay.place.isEmpty() ? "a holiday home" : stay.place)
+                + where + ". Answer in at most 80 words, plainly, without markdown tables or headings. Suggest specific, real places "
+                + "when you know them, and tell guests to check opening hours. For questions about the house, use only these facts: "
+                + "check-in from " + Stay.friendly(stay.checkin) + ", check-out by " + Stay.friendly(stay.checkout)
+                + (stay.rules.isEmpty() ? "" : ", house rules: " + String.join("; ", stay.rules)) + ". "
+                + "Never invent door codes, Wi-Fi passwords or prices; say the host can help instead.";
+        String last = "The assistant is unavailable right now.";
+        for (String model : MODELS) {
+            JSONObject req = new JSONObject().put("model", model).put("temperature", 0.5).put("max_tokens", 400)
+                    .put("messages", new JSONArray()
+                            .put(new JSONObject().put("role", "system").put("content", system))
+                            .put(new JSONObject().put("role", "user").put("content", question)));
+            if (model.startsWith("openai/gpt-oss")) req.put("reasoning_effort", "low");
+            try {
+                JSONObject res = new JSONObject(get("https://api.groq.com/openai/v1/chat/completions", req.toString(), key));
+                String text = res.getJSONArray("choices").getJSONObject(0).getJSONObject("message").optString("content", "").trim();
+                if (!text.isEmpty()) return new JSONObject().put("answer", text);
+            } catch (java.io.IOException e) {
+                last = e.getMessage() == null ? last : e.getMessage();
+                if (last.startsWith("401")) return new JSONObject().put("error", "The host's AI key isn't working.");
+                // 400/404 for a retired model: try the next one; anything else is not about the model.
+                if (!last.startsWith("400") && !last.startsWith("404")) break;
+            }
+        }
+        return new JSONObject().put("error", "The assistant is unavailable right now.");
+    }
+
+    /** GET, or POST a JSON body with a bearer key; throws "<status> ..." for HTTP errors. */
+    private static String get(String url, String body, String bearer) throws java.io.IOException {
+        java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL(url).openConnection();
+        c.setConnectTimeout(8000);
+        c.setReadTimeout(30000);
+        if (bearer != null) c.setRequestProperty("Authorization", "Bearer " + bearer);
+        if (body != null) {
+            c.setDoOutput(true);
+            c.setRequestMethod("POST");
+            c.setRequestProperty("Content-Type", "application/json");
+            try (OutputStream o = c.getOutputStream()) {
+                o.write(body.getBytes(StandardCharsets.UTF_8));
+            }
+        }
+        int code = c.getResponseCode();
+        InputStream in = code >= 400 ? c.getErrorStream() : c.getInputStream();
+        ByteArrayOutputStream b = new ByteArrayOutputStream();
+        if (in != null) try (InputStream i = in) {
+            byte[] buf = new byte[8192];
+            int n;
+            while ((n = i.read(buf)) > 0) b.write(buf, 0, n);
+        }
+        String text = b.toString("UTF-8");
+        if (code >= 400) throw new java.io.IOException(code + " " + text.substring(0, Math.min(200, text.length())));
+        return text;
     }
 
     // ---- remote ----------------------------------------------------------------------------------------
