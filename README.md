@@ -10,6 +10,8 @@ else.
   <a href="https://github.com/Asta39/tvupgrade/releases/latest"><img src="https://img.shields.io/github/v/release/Asta39/tvupgrade?label=Download%20APK&style=for-the-badge" alt="Download the latest APK" height="56"></a>
 </p>
 
+<p align="center"><b>Website:</b> <a href="https://asta39.github.io/tvupgrade/">asta39.github.io/tvupgrade</a> · open it in your TV's browser to download straight to the TV</p>
+
 ![Home screen, golden peak](screenshots/home-3.jpg)
 
 Built on a TCL G10 (Google TV 12) with [Claude Code](https://claude.com/claude-code), starting from
