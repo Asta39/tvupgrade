@@ -3,9 +3,45 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>TV Upgrade</title>
-<meta name="description" content="An Apple TV–style home screen for Google TV. Download the latest APK straight to your TV.">
+<title>TV Upgrade: Apple TV–style home screen for Google TV &amp; Android TV</title>
+<meta name="description" content="TV Upgrade is a free, open-source Apple TV–style home screen for Google TV and Android TV: a liquid-glass clock, StandBy with synced lyrics, Guest mode and a debloated TV. Download the APK straight to your TV.">
+<meta name="keywords" content="TV Upgrade, Google TV launcher, Android TV launcher, Apple TV home screen, TCL TV launcher, debloat Google TV, TV home screen APK, StandBy, TizenTube">
+<link rel="canonical" href="https://asta39.github.io/tvupgrade/">
+<meta name="robots" content="index, follow">
+<meta name="theme-color" content="#ffffff">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="TV Upgrade">
+<meta property="og:title" content="TV Upgrade: Apple TV–style home screen for Google TV">
+<meta property="og:description" content="TV Upgrade is a free, open-source Apple TV–style home screen for Google TV and Android TV: a liquid-glass clock, StandBy with synced lyrics, Guest mode and a debloated TV. Download the APK straight to your TV.">
+<meta property="og:url" content="https://asta39.github.io/tvupgrade/">
+<meta property="og:image" content="https://raw.githubusercontent.com/Asta39/tvupgrade/main/screenshots/home-3.jpg">
+<meta property="og:image:width" content="1920">
+<meta property="og:image:height" content="1080">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="TV Upgrade: Apple TV–style home screen for Google TV">
+<meta name="twitter:description" content="TV Upgrade is a free, open-source Apple TV–style home screen for Google TV and Android TV: a liquid-glass clock, StandBy with synced lyrics, Guest mode and a debloated TV. Download the APK straight to your TV.">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/Asta39/tvupgrade/main/screenshots/home-3.jpg">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "TV Upgrade",
+  "alternateName": "TV Upgrade Home",
+  "description": "TV Upgrade is a free, open-source Apple TV–style home screen for Google TV and Android TV: a liquid-glass clock, StandBy with synced lyrics, Guest mode and a debloated TV. Download the APK straight to your TV.",
+  "url": "https://asta39.github.io/tvupgrade/",
+  "downloadUrl": "https://github.com/Asta39/tvupgrade/releases/latest",
+  "image": "https://raw.githubusercontent.com/Asta39/tvupgrade/main/screenshots/home-3.jpg",
+  "screenshot": "https://raw.githubusercontent.com/Asta39/tvupgrade/main/screenshots/home-3.jpg",
+  "applicationCategory": "UtilitiesApplication",
+  "operatingSystem": "Android TV, Google TV (Android 8.0+)",
+  "isAccessibleForFree": true,
+  "license": "https://github.com/Asta39/tvupgrade/blob/main/LICENSE",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "author": { "@type": "Person", "name": "Asta39", "url": "https://github.com/Asta39" }
+}
+</script>
 <link rel="icon" href="https://raw.githubusercontent.com/Asta39/tvupgrade/main/screenshots/app-icon.png">
+<link rel="apple-touch-icon" href="https://raw.githubusercontent.com/Asta39/tvupgrade/main/screenshots/app-icon.png">
 <style>
   :root {
     --bg: #ffffff;
@@ -78,6 +114,9 @@
   .btn.ghost { background: transparent; color: var(--blue); padding-left: 1rem; padding-right: 1rem; }
   .btn svg { width: 1.2em; height: 1.2em; }
   .ctas { display: flex; gap: 1rem; align-items: center; justify-content: center; margin-top: 2.6rem; flex-wrap: wrap; }
+  .orion { display: inline-flex; border-radius: .9rem; transition: transform .25s cubic-bezier(.2,.8,.2,1), box-shadow .25s; }
+  .orion img { height: 3.5rem; width: auto; }
+  .orion:focus { transform: scale(1.07); box-shadow: 0 0 0 .3rem #fff, 0 0 0 .6rem var(--blue); }
   .meta { color: var(--muted); font-size: 1rem; margin-top: 1.2rem; text-align: center; }
   a:focus { outline: none; }
   a:focus-visible, .btn:focus { transform: scale(1.07); box-shadow: 0 0 0 .3rem #fff, 0 0 0 .6rem var(--blue), 0 20px 40px -14px rgba(0,113,227,.6); }
@@ -221,6 +260,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12m0 0-5-5m5 5 5-5M5 20h14"/></svg>
         <span class="dlLabel">Download</span>
       </a>
+      <a class="orion" href="https://rookieenough.github.io/Orion-Data/app/?id=home"><img src="https://raw.githubusercontent.com/RookieEnough/Orion-Store/refs/heads/main/assets/orion-badge.png" alt="Get it on Orion Store"></a>
       <a class="btn ghost" href="#clock">Take the tour ›</a>
     </div>
     <p class="meta rv dlMeta">Checking for the latest release…</p>
@@ -355,7 +395,7 @@
       <p class="lead center rv">Download right here on your TV. A short welcome walks you through the rest.</p>
     </div>
     <div class="steps">
-      <div class="step rv"><img data-s="setup-welcome.jpg" alt=""><h4><span>1</span>Download</h4><p>Press Download below. Allow this browser to install apps when the TV asks.</p></div>
+      <div class="step rv"><img data-s="setup-welcome.jpg" alt=""><h4><span>1</span>Download</h4><p>Press Download below, or get it from Orion Store, which keeps it updated for you. Allow installs when the TV asks.</p></div>
       <div class="step rv"><img data-s="setup-apps.jpg" alt=""><h4><span>2</span>Pick your apps</h4><p>Up to eight for the dock, and up to four people.</p></div>
       <div class="step rv"><img data-s="setup-debugging.jpg" alt=""><h4><span>3</span>Connect</h4><p>Turn on debugging and it sets up the Home button for you. Optional.</p></div>
       <div class="step rv"><img data-s="setup-cleanup.jpg" alt=""><h4><span>4</span>Clean up</h4><p>Turn off the clutter on tested TVs. Everything can be undone.</p></div>
@@ -373,6 +413,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12m0 0-5-5m5 5 5-5M5 20h14"/></svg>
         <span class="dlLabel">Download</span>
       </a>
+      <a class="orion" href="https://rookieenough.github.io/Orion-Data/app/?id=home"><img src="https://raw.githubusercontent.com/RookieEnough/Orion-Store/refs/heads/main/assets/orion-badge.png" alt="Get it on Orion Store"></a>
       <a class="btn ghost" href="https://github.com/Asta39/tvupgrade">View on GitHub ›</a>
     </div>
     <p class="meta dlMeta"></p>
@@ -456,7 +497,7 @@
       e.preventDefault();
       scrollBy({ top: (k === 'ArrowDown' ? 1 : -1) * vh * 0.7, behavior: 'smooth' });
       setTimeout(function () {
-        var btn = $$('a.btn, a.get').filter(function (a) {
+        var btn = $$('a.btn, a.get, a.orion').filter(function (a) {
           var r = a.getBoundingClientRect(); return r.top > vh * 0.1 && r.bottom < vh * 0.95;
         })[0];
         if (btn) btn.focus({ preventScroll: true });
