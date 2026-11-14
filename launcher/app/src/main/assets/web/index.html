@@ -219,8 +219,12 @@
   /* the guest's home dashboard */
   .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
   .grid2:empty { display: none; }
-  .grid2 .tonight, .grid2 .sun { grid-column: 1 / -1; }
-  .tile.sun { flex-direction: row; align-items: center; gap: 18px; }
+  .grid2 .tonight, .grid2 .suntile { grid-column: 1 / -1; }
+  .suntile { gap: 2px; }
+  .sunhead { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; letter-spacing: .04em; color: var(--ink-3); }
+  .suntime { font: 600 34px/1.15 var(--font-d); letter-spacing: -.01em; margin-top: 4px; }
+  .suncurve { width: 100%; height: 64px; margin: 6px 0 4px; overflow: visible; }
+  .sunfoot { font-size: 14px; font-weight: 500; }
   .stack { display: flex; flex-direction: column; gap: 10px; }
   .media { display: flex; align-items: center; gap: 14px; border-radius: 22px; padding: 10px 14px 10px 10px; }
   .mposter { width: 56px; aspect-ratio: 2/3; border-radius: 10px; object-fit: cover; background: rgba(255,255,255,.1); flex: 0 0 auto; }
@@ -474,6 +478,47 @@ function stayTile() {
   }
   return `<div class="tile glass">${svg('home', 22)}<span class="label">${s.arriving ? 'Arriving today' : 'Your stay'}</span><span class="big">${s.arriving ? 'Night 1' : `Night ${s.night}<small class="muted" style="font-size:16px"> of ${s.nights}</small>`}</span></div>`;
 }
+// Sunrise and sunset, after Apple Weather's tile: a small symbol and label, the next of the two in large type, the
+// day as one smooth curve over 24 hours (bright above the horizon, dim below it) with the sun where it is now, and
+// the other time underneath.
+function sunTile(w) {
+  const now = Date.now(), up = new Date(w.sunrise[0]).getTime(), down = new Date(w.sunset[0]).getTime();
+  const isDay = now > up && now < down;
+  let next = isDay ? down : (now < up ? up : new Date(w.sunrise[1] || w.sunrise[0]).getTime());
+  while (next < now) next += 86400000; // after tonight's sunset with no later sunrise listed: same time tomorrow
+  const other = isDay ? (now < up ? down : up) : down;
+  // The curve: hours of the day across, a cosine peaking at solar noon; the horizon crosses it at sunrise and sunset.
+  const hour = t => { const d = new Date(t); return d.getHours() + d.getMinutes() / 60; };
+  const rise = hour(up), set = hour(down), noon = (rise + set) / 2;
+  const W = 300, H = 72, mid = 40, A = 26;
+  const y = h => mid - A * Math.cos(2 * Math.PI * (h - noon) / 24);
+  const horizon = y(rise);
+  let path = '';
+  for (let i = 0; i <= 96; i++) { const h = i / 4; path += (i ? 'L' : 'M') + (h / 24 * W).toFixed(1) + ' ' + y(h).toFixed(1); }
+  const nowH = hour(now), sx = nowH / 24 * W, sy = y(nowH);
+  const mins = Math.round((next - now) / 60000);
+  // Like SF Symbols' sunrise.fill / sunset.fill: a filled half sun on the horizon, an arrow up or down above it.
+  const arrow = isDay ? '<path d="M12 3.5v6M9.4 7 12 9.6 14.6 7"/>' : '<path d="M12 9.6v-6M9.4 6.1 12 3.5l2.6 2.6"/>';
+  const icon = `<path d="M6.5 18.5a5.5 5.5 0 0 1 11 0z" fill="currentColor" stroke="none"/><path d="M3 18.5h18"/>${arrow}
+    <path d="M3.6 14.2l1.6.9M20.4 14.2l-1.6.9"/>`;
+  return `<div class="tile glass suntile">
+    <span class="sunhead"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icon}</svg>${isDay ? 'SUNSET' : 'SUNRISE'}</span>
+    <span class="suntime">${clock(next)}</span>
+    <svg class="suncurve" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
+      <defs>
+        <clipPath id="sky"><rect x="0" y="0" width="${W}" height="${horizon}"/></clipPath>
+        <clipPath id="ground"><rect x="0" y="${horizon}" width="${W}" height="${H - horizon}"/></clipPath>
+        <radialGradient id="glow"><stop offset="0" stop-color="#fff" stop-opacity=".55"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+      </defs>
+      <path d="${path}" fill="none" stroke="rgba(255,255,255,.28)" stroke-width="2.2" clip-path="url(#ground)"/>
+      <path d="${path}" fill="none" stroke="rgba(255,255,255,.9)" stroke-width="2.2" clip-path="url(#sky)"/>
+      <line x1="0" y1="${horizon}" x2="${W}" y2="${horizon}" stroke="rgba(255,255,255,.35)" stroke-width="1"/>
+      ${sy < horizon ? `<circle cx="${sx}" cy="${sy}" r="11" fill="url(#glow)"/>` : ''}
+      <circle cx="${sx}" cy="${sy}" r="4.5" fill="${sy < horizon ? '#fff' : 'rgba(255,255,255,.45)'}"/>
+    </svg>
+    <span class="sunfoot">${isDay ? 'Sunrise' : 'Sunset'}: ${clock(other)}<span class="muted"> · ${isDay ? 'sunset' : 'sunrise'} in ${mins >= 90 ? Math.floor(mins / 60) + 'h ' + (mins % 60) + 'm' : mins + ' min'}</span></span>
+  </div>`;
+}
 // WMO weather codes as one symbol each (Open-Meteo's codes).
 function wx(code, day = true) {
   if (code === 0) return day ? '☀️' : '🌙';
@@ -510,20 +555,7 @@ function fillDash() {
 
   // Around you: the sun, and tonight's plan.
   const around = [];
-  if (w && w.sunrise && w.sunset) {
-    const now = Date.now(), up = new Date(w.sunrise[0]).getTime(), down = new Date(w.sunset[0]).getTime();
-    const isDay = now > up && now < down;
-    let next = isDay ? down : (now < up ? up : new Date(w.sunrise[1] || w.sunrise[0]).getTime());
-    while (next < now) next += 86400000; // after tonight's sunset with no later sunrise listed: same time tomorrow
-    const k = isDay ? (now - up) / (down - up) : -1, mins = Math.round((next - now) / 60000);
-    const a = Math.PI * (1 - Math.max(0, Math.min(1, k))), sx = 50 + Math.cos(a) * 40, sy = 46 - Math.sin(a) * 40;
-    around.push(`<div class="tile glass sun"><svg viewBox="0 0 100 52" width="112" height="58" aria-hidden="true">
-        <path d="M10 46 A40 40 0 0 1 90 46" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="2" stroke-dasharray="0.1 6" stroke-linecap="round"/>
-        <line x1="4" y1="46" x2="96" y2="46" stroke="rgba(255,255,255,.35)" stroke-width="1.5"/>
-        <circle cx="${isDay ? sx : 10}" cy="${isDay ? sy : 49}" r="9" fill="rgba(255,201,77,.3)"/><circle cx="${isDay ? sx : 10}" cy="${isDay ? sy : 49}" r="5" fill="#ffc94d"/></svg>
-      <span class="two-line"><span class="label">${isDay ? 'Sunset' : 'Sunrise'}</span><span class="big" style="font-size:24px">${clock(next)}</span>
-      <small class="muted">in ${mins >= 90 ? Math.floor(mins / 60) + 'h ' + (mins % 60) + 'm' : mins + ' min'}</small></span></div>`);
-  }
+  if (w && w.sunrise && w.sunset) around.push(sunTile(w));
   if (d.tonight && d.tonight.length) around.push(`<button class="tile glass tonight" id="dtonight" style="text-align:left"><span class="label">Tonight</span>
       ${d.tonight.map(l => `<span class="tline">${esc(l)}</span>`).join('')}<small class="link" style="padding:0;min-height:0">Ask for more ›</small></button>`);
   $('#daround').innerHTML = around.join('');
