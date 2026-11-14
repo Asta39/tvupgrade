@@ -74,6 +74,30 @@ final class HostServer {
         Thread t = new Thread(s::serve, "host-server");
         t.setDaemon(true);
         t.start();
+        // Every ten minutes: sign guests out of the apps they signed in to, an hour after their check-out.
+        java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread x = new Thread(r, "auto-sign-out");
+            x.setDaemon(true);
+            return x;
+        }).scheduleWithFixedDelay(s::autoSignOut, 1, 10, java.util.concurrent.TimeUnit.MINUTES);
+    }
+
+    private void autoSignOut() {
+        try {
+            JSONObject j = Stay.json(ctx);
+            long at = j.optLong("signout_at", 0);
+            if (at == 0 || System.currentTimeMillis() < at) return;
+            if (j.optBoolean("auto_signout", true) && !signins().isEmpty()) {
+                JSONObject r = signOut("");
+                if (r.has("error")) return; // try again in ten minutes
+            }
+            JSONObject after = Stay.json(ctx);
+            after.remove("signout_at");
+            Stay.write(ctx, after);
+            changed();
+        } catch (Exception e) {
+            android.util.Log.w("HostServer", "auto sign-out failed", e);
+        }
     }
 
     static void newClaimCode() {
@@ -412,6 +436,7 @@ final class HostServer {
                 .put("depart", stay.staying() ? stay.depart.toString() : "");
         o.put("apps", allowedApps());
         o.put("signed_in", signedInLabels());
+        o.put("auto_signout", s.optBoolean("auto_signout", true) && s.optLong("signout_at", 0) > 0);
         return o;
     }
 
@@ -430,6 +455,7 @@ final class HostServer {
                     .put("arrive", g.optString("arrive")).put("depart", g.optString("depart")));
         }
         if (b.has("locked")) s.put("locked", b.optBoolean("locked"));
+        if (b.has("auto_signout")) s.put("auto_signout", b.optBoolean("auto_signout"));
         // The AI key: set when a new one is sent, removed on request, otherwise kept as it is.
         if (!b.optString("ai_key", "").trim().isEmpty()) s.put("ai_key", b.optString("ai_key").trim());
         if (b.optBoolean("ai_key_clear")) s.remove("ai_key");
@@ -808,6 +834,13 @@ final class HostServer {
         java.util.Set<String> mine = signins();
         mine.add(pkg);
         s.put("signins", new JSONArray(mine));
+        // Signed in during a stay: due to be signed out an hour after that stay's check-out.
+        Stay stay = Stay.load(ctx);
+        if (stay.staying()) {
+            long at = stay.depart.atTime(Stay.time(stay.checkout)).plusHours(1)
+                    .atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli();
+            s.put("signout_at", Math.max(at, s.optLong("signout_at", 0)));
+        }
         Stay.write(ctx, s);
         return new JSONObject().put("ok", true).put("url", Watch.SIGN_IN.get(pkg));
     }

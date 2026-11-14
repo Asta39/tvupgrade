@@ -567,7 +567,7 @@ function signedReminder() {
   if (!s.length || state.host) return '';
   const urgent = state.leaving;
   return `<div class="remind glass ${urgent ? 'urgent' : ''}"><b>${urgent ? 'Before you go, sign out' : 'Signed in on this TV'}</b>
-    <span>${esc(s.join(', '))}. ${urgent ? 'Sign out so the next guests can’t use your account.' : 'Remember to sign out before you leave.'}</span>
+    <span>${esc(s.join(', '))}. ${urgent ? 'Sign out so the next guests can’t use your account.' : 'Remember to sign out before you leave.'}${state.auto_signout ? ` If you forget, the TV signs you out an hour after check-out (${esc(state.checkout)}).` : ''}</span>
     <button class="btn glass red" id="signoutall" style="min-height:48px">Sign out of ${s.length === 1 ? esc(s[0]) : 'all ' + s.length + ' apps'}</button></div>`;
 }
 function bindSignOutAll() {
@@ -877,6 +877,9 @@ function settingsView(head) {
     </div><div class="note">Add shows from Watch: search, then tap Add to Kids. Switch the TV to Kids on Today; leaving Kids mode on the TV needs your PIN.</div>
       <div class="chips" style="padding:10px 0 0">${apps.map(a => `<button data-kapp="${esc(a.pkg)}" class="${kidApps.has(a.pkg) ? 'on' : ''}" aria-pressed="${kidApps.has(a.pkg)}">${esc(a.label)}</button>`).join('')}</div>
       <div class="note">Blue apps show on the Kids screen.</div></div>
+    <div class="section"><span class="eyebrow">Guest accounts</span><div class="list glass">
+      ${toggleRow('autoout', 'Sign guests out after check-out', 'An hour after check-out, apps they signed in to from their phone are cleared', h.auto_signout !== false)}
+    </div><div class="note">Clearing an app signs out everyone on it, you included, so keep your own accounts off the apps guests sign in to.</div></div>
     <div class="section"><span class="eyebrow">Ask about the area</span><div class="list glass">
       <div class="row"><span>AI answers</span><span class="v" style="color:${h.ai_configured ? 'var(--green)' : 'var(--ink-3)'}">${h.ai_configured ? 'On' : 'Off'}</span></div>
       <label class="row"><span>Groq API key</span><input id="aikey" type="password" placeholder="${h.ai_configured ? 'Saved · paste to replace' : 'gsk_…'}" autocomplete="off"></label>
@@ -889,6 +892,7 @@ function settingsView(head) {
       <div class="row"><span>Address</span><span class="muted">${esc(location.host)}</span></div></div></div>
     <div class="section"><button class="btn glass red" id="signout">Sign out</button></div>`;
   document.querySelectorAll('[data-app]').forEach(i => i.onchange = () => save({ apps: [...document.querySelectorAll('[data-app]:checked')].map(x => x.dataset.app) }, 'Apps updated'));
+  $('#autoout').onchange = e => save({ auto_signout: e.target.checked }, e.target.checked ? 'Guests are signed out after check-out' : 'Automatic sign-out off');
   $('#kidname').onchange = e => save({ kids_name: e.target.value }, 'Saved');
   document.querySelectorAll('[data-kidx]').forEach(b => b.onclick = async () => { try { await api('/api/kids/remove', { index: +b.dataset.kidx }); hostView(); } catch (e) { toast(e.message); } });
   document.querySelectorAll('[data-kapp]').forEach(b => b.onclick = () => { b.classList.toggle('on'); b.setAttribute('aria-pressed', b.classList.contains('on'));
