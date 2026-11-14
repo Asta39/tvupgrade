@@ -1,0 +1,42 @@
+name: New TV model (debloat list)
+description: Share a tested debloat list for a TV model that isn't covered yet.
+labels: [tv-model]
+body:
+  - type: markdown
+    attributes:
+      value: Lists are only accepted after a full restart on the real TV. A wrong list can stop a TV from starting.
+  - type: input
+    id: model
+    attributes:
+      label: Model names
+      description: Output of `adb shell getprop ro.product.model`, `ro.product.device` and `ro.product.name`.
+    validations:
+      required: true
+  - type: input
+    id: android
+    attributes:
+      label: Android version and firmware
+    validations:
+      required: true
+  - type: textarea
+    id: list
+    attributes:
+      label: Packages turned off
+      description: One per line, with a short comment saying what each one is.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: kept
+    attributes:
+      label: Kept on purpose
+      description: Packages you left on because the TV needs them (tuner, inputs, setup, updates).
+  - type: checkboxes
+    id: tested
+    attributes:
+      label: Tested
+      options:
+        - label: I disabled these with pm disable-user (not uninstall) and the TV restarted to a working home screen.
+          required: true
+        - label: Live TV / HDMI inputs, Wi-Fi and the remote still work.
+          required: true

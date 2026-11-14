@@ -273,6 +273,13 @@ To turn one app back on: `adb shell pm enable <package>`.
 Turn **USB debugging** and **Network debugging** off on the TV and revoke the authorisations. Port 5555 is
 unencrypted, and anyone on your network could reach it while it's open.
 
+## Contributing
+
+Bug reports, tested debloat lists for new TV models and pull requests are welcome. Start with
+[CONTRIBUTING.md](CONTRIBUTING.md); please follow the [Code of Conduct](CODE_OF_CONDUCT.md), report security
+problems privately as described in [SECURITY.md](SECURITY.md), and see [ACCESSIBILITY.md](ACCESSIBILITY.md) for
+what the app supports and how to report a barrier.
+
 ## Credits
 
 - [cleanyourtv](https://github.com/Gathin23/cleanyourtv) by Gathin23: the launcher, tools and safety rules (MIT, see [LICENSE](LICENSE))
