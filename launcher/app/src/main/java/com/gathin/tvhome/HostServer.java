@@ -225,6 +225,8 @@ final class HostServer {
         }
         switch (method + " " + path) {
             case "GET /api/state":
+                // A guest's phone on check-in day: the TV plays its welcome, once per stay.
+                if (!host) maybeArrival();
                 json(out, 200, state(host));
                 return;
             case "POST /api/claim":
@@ -240,6 +242,9 @@ final class HostServer {
                 // The AI key is write-only: the page only learns whether one is set.
                 j.put("ai_configured", !j.optString("ai_key", "").isEmpty());
                 j.remove("ai_key");
+                // Keys from an earlier version of party mode, no longer used.
+                j.remove("spotify_id");
+                j.remove("spotify_secret");
                 json(out, 200, j);
                 return;
             case "POST /api/watch/search":
@@ -266,6 +271,80 @@ final class HostServer {
             case "POST /api/accounts/signin":
                 if (!host && !guestRemote()) break;
                 json(out, 200, signIn(body.optString("pkg"), host));
+                return;
+            case "GET /api/dashboard":
+                if (!host && !"guest".equals(Stay.json(ctx).optString("mode"))) break;
+                json(out, 200, dashboard(host));
+                return;
+            // ---- watch together: one shared swipe deck, a match when everyone likes the same title (Together)
+            case "POST /api/group":
+                if (!host && !guestRemote()) break;
+                json(out, 200, Together.state(body.optString("me")));
+                return;
+            case "POST /api/group/start":
+                if (!host && !guestRemote()) break;
+                json(out, 200, Together.start(ctx, body.optString("name")));
+                return;
+            case "POST /api/group/join":
+                if (!host && !guestRemote()) break;
+                json(out, 200, Together.join(body.optString("name")));
+                return;
+            case "POST /api/group/leave":
+                if (!host && !guestRemote()) break;
+                json(out, 200, Together.leave(body.optString("me")));
+                return;
+            case "POST /api/group/vote":
+                if (!host && !guestRemote()) break;
+                json(out, 200, Together.vote(ctx, body.optString("me"), body.optString("key"), body.optBoolean("like")));
+                return;
+            case "POST /api/group/again":
+                if (!host && !guestRemote()) break;
+                json(out, 200, Together.again(body.optString("me")));
+                return;
+            case "POST /api/group/play":
+                if (!host && !guestRemote()) break;
+                JSONObject gp = Together.play(ctx, body.optString("key"));
+                if (!gp.has("error")) Together.end();
+                json(out, 200, gp);
+                return;
+            // ---- party mode: a shared music queue on the TV's Spotify (Party)
+            case "POST /api/party":
+                if (!host && !guestRemote()) break;
+                json(out, 200, Party.state(ctx, body.optString("phone")));
+                return;
+            case "POST /api/party/search":
+                if (!host && !guestRemote()) break;
+                try {
+                    json(out, 200, Party.search(body.optString("q")));
+                } catch (java.io.IOException e) {
+                    json(out, 200, new JSONObject().put("error", "Song search isn’t answering. Try again."));
+                }
+                return;
+            case "POST /api/party/add":
+                if (!host && !guestRemote()) break;
+                json(out, 200, Party.add(ctx, body.optString("id"), body.optString("name"), body.optString("phone")));
+                return;
+            case "POST /api/party/remove":
+                if (!host && !guestRemote()) break;
+                json(out, 200, Party.remove(body.optString("id"), body.optString("phone"), host));
+                return;
+            case "POST /api/party/skip":
+                if (!host && !guestRemote()) break;
+                json(out, 200, Party.skip(ctx));
+                return;
+            case "POST /api/party/lyrics":
+                if (!host && !guestRemote()) break;
+                Party.lyrics(ctx);
+                json(out, 200, new JSONObject().put("ok", true));
+                return;
+            case "POST /api/party/stop":
+                if (!host) break;
+                json(out, 200, Party.stop());
+                return;
+            case "POST /api/arrival/play":
+                if (!host) break;
+                arrivalShow();
+                json(out, 200, new JSONObject().put("ok", true));
                 return;
             case "POST /api/accounts/signout":
                 if (!host && !guestRemote()) break;
@@ -422,7 +501,7 @@ final class HostServer {
                 .put("place", stay.place).put("about", stay.about)
                 .put("wifi_name", stay.wifiName).put("wifi_password", stay.wifiPassword)
                 .put("rules", new JSONArray(stay.rules))
-                .put("checkin", Stay.friendly(stay.checkin)).put("checkout", Stay.friendly(stay.checkout))
+                .put("checkin", Stay.friendly(stay.checkin)).put("checkout", Stay.friendly(stay.checkout)).put("checkout_time", stay.checkout)
                 .put("staying", stay.staying()).put("names", stay.names)
                 .put("door_code", stay.doorCode)
                 .put("night", stay.night).put("nights", stay.nights)
@@ -442,7 +521,97 @@ final class HostServer {
         } catch (PackageManager.NameNotFoundException ignored) {
         }
         o.put("auto_signout", s.optBoolean("auto_signout", true) && s.optLong("signout_at", 0) > 0);
+        // Party mode shows whenever the TV has Spotify: nothing to set up.
+        o.put("music", Party.installed(ctx));
         return o;
+    }
+
+    // ---- the phone's Home dashboard -------------------------------------------------------------------
+
+    /**
+     * Everything the phone's Home shows beyond the stay (Dashboard caches each part): the next hours' weather with
+     * sunrise and sunset, tonight's plan, what's popular on the TV's apps, what was last played during this stay,
+     * and the song party mode is playing.
+     */
+    private JSONObject dashboard(boolean host) throws Exception {
+        JSONObject o = new JSONObject();
+        JSONObject w = Dashboard.weather();
+        if (w != null) {
+            JSONObject cur = w.optJSONObject("current"), daily = w.optJSONObject("daily"), hourly = w.optJSONObject("hourly");
+            JSONObject ow = new JSONObject().put("city", Config.weatherCity);
+            if (cur != null) ow.put("temp", Math.round(cur.optDouble("temperature_2m"))).put("text", Weather.describe(cur.optInt("weather_code")))
+                    .put("code", cur.optInt("weather_code")).put("day", cur.optInt("is_day", 1) == 1);
+            if (daily != null) ow.put("hi", Math.round(daily.optJSONArray("temperature_2m_max").optDouble(0)))
+                    .put("lo", Math.round(daily.optJSONArray("temperature_2m_min").optDouble(0)))
+                    .put("sunrise", daily.optJSONArray("sunrise")).put("sunset", daily.optJSONArray("sunset"));
+            if (hourly != null) {
+                // The next six hours, from the hour after now.
+                String now = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH"));
+                JSONArray t = hourly.optJSONArray("time"), hours = new JSONArray();
+                int start = -1;
+                for (int i = 0; t != null && i < t.length(); i++) if (t.optString(i).startsWith(now)) start = i + 1;
+                for (int i = start; start > 0 && i < t.length() && hours.length() < 6; i++) {
+                    hours.put(new JSONObject().put("time", t.optString(i)).put("temp", Math.round(hourly.optJSONArray("temperature_2m").optDouble(i)))
+                            .put("code", hourly.optJSONArray("weather_code").optInt(i)).put("rain", hourly.optJSONArray("precipitation_probability").optInt(i))
+                            .put("day", hourly.optJSONArray("is_day").optInt(i, 1) == 1));
+                }
+                ow.put("hours", hours);
+            }
+            o.put("weather", ow);
+        }
+        JSONArray plan = Dashboard.tonight(ctx);
+        if (plan != null) o.put("tonight", plan);
+        JSONArray trending = Dashboard.trending(ctx);
+        if (trending != null) o.put("trending", trending);
+        // Up next: guests see only what was played during their stay, so the next guests never see it; the host always.
+        Stay stay = Stay.load(ctx);
+        JSONObject r = Stay.json(ctx).optJSONObject("recent");
+        if (r != null && (host || stay.staying() && r.optLong("at") >= stay.arrive.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli())) {
+            String id = Watch.again(r.optString("pkg"), r.optString("link"), r.optString("title"), r.optString("poster"));
+            o.put("recent", new JSONObject().put("title", r.optString("title")).put("poster", r.optString("poster")).put("id", id)
+                    .put("app", label(r.optString("pkg"))));
+        }
+        JSONObject music = Party.current();
+        if (music != null) o.put("music", new JSONObject().put("title", music.optString("title")).put("artist", music.optString("artist"))
+                .put("art", music.optString("art")).put("by", music.optString("by")).put("next", Party.queued()));
+        return o;
+    }
+
+    private String label(String pkg) {
+        try {
+            PackageManager pm = ctx.getPackageManager();
+            return String.valueOf(pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)));
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    // ---- the arrival show ------------------------------------------------------------------------------
+
+    /**
+     * The first guest phone on check-in day starts the welcome on the TV (ArrivalActivity). "arrival_shown" keeps the
+     * stay it played for, so it plays once per stay however many phones open the page.
+     */
+    private void maybeArrival() {
+        try {
+            JSONObject s = Stay.json(ctx);
+            Stay stay = Stay.load(ctx);
+            if (!s.optBoolean("arrival_show", true) || !stay.arrivingToday() || !"guest".equals(s.optString("mode"))) return;
+            JSONObject g = s.optJSONObject("guest");
+            String key = stay.arrive + "|" + (g == null ? "" : g.optString("names"));
+            synchronized (this) {
+                if (key.equals(s.optString("arrival_shown"))) return;
+                s.put("arrival_shown", key);
+                Stay.write(ctx, s);
+            }
+            arrivalShow();
+        } catch (Exception e) {
+            android.util.Log.w("HostServer", "arrival show", e);
+        }
+    }
+
+    private void arrivalShow() {
+        main.post(() -> ctx.startActivity(new Intent(ctx, ArrivalActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)));
     }
 
     /** Fields the host page may change; anything else in the body is ignored. */
@@ -464,6 +633,7 @@ final class HostServer {
         // The AI key: set when a new one is sent, removed on request, otherwise kept as it is.
         if (!b.optString("ai_key", "").trim().isEmpty()) s.put("ai_key", b.optString("ai_key").trim());
         if (b.optBoolean("ai_key_clear")) s.remove("ai_key");
+        if (b.has("arrival_show")) s.put("arrival_show", b.optBoolean("arrival_show"));
         if (b.has("guest_remote")) s.put("guest_remote", b.optBoolean("guest_remote"));
         if (b.has("mode")) {
             String m = b.optString("mode");
@@ -670,7 +840,7 @@ final class HostServer {
     // ---- ask about the area (Groq) ---------------------------------------------------------------------
 
     /** Groq retires models often: try these in order, skipping any Groq says it no longer serves. */
-    private static final String[] MODELS = {"openai/gpt-oss-20b", "openai/gpt-oss-120b", "llama-3.3-70b-versatile"};
+    static final String[] MODELS = {"openai/gpt-oss-20b", "openai/gpt-oss-120b", "llama-3.3-70b-versatile"};
     private final java.util.ArrayDeque<Long> asks = new java.util.ArrayDeque<>();
 
     private JSONObject ask(String question) throws Exception {
@@ -714,7 +884,7 @@ final class HostServer {
     }
 
     /** GET, or POST a JSON body with a bearer key; throws "<status> ..." for HTTP errors. */
-    private static String get(String url, String body, String bearer) throws java.io.IOException {
+    static String get(String url, String body, String bearer) throws java.io.IOException {
         java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL(url).openConnection();
         c.setConnectTimeout(8000);
         c.setReadTimeout(30000);

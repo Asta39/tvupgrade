@@ -261,6 +261,20 @@
             android:screenOrientation="landscape"
             android:windowSoftInputMode="adjustResize"
             android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen" />
+        <!-- This fork: "It's a match!" when every phone in a watch-together group liked the same title. -->
+        <activity
+            android:name=".MatchActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:screenOrientation="landscape"
+            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen" />
+        <!-- This fork: the welcome show the first guest phone on check-in day starts. -->
+        <activity
+            android:name=".ArrivalActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:screenOrientation="landscape"
+            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen" />
         <!-- This fork: StandBy clock faces, on demand and as the screensaver. -->
         <activity
             android:name=".StandByActivity"

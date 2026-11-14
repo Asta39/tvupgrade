@@ -60,6 +60,24 @@ final class Watch {
         SEARCH_LINKS.put("com.google.android.youtube.tv", "https://www.youtube.com/results?search_query=");
     }
 
+    /** TizenTube (ad-free YouTube for TVs): wherever this launcher opens YouTube, it uses TizenTube when it's here. */
+    static final String TIZENTUBE = "io.gh.reisxd.tizentube.cobalt", YOUTUBE = "com.google.android.youtube.tv";
+
+    /** TizenTube when it's installed, else the original YouTube app; null without either. */
+    static String youtube(PackageManager pm) {
+        if (installed(pm, TIZENTUBE)) return TIZENTUBE;
+        return installed(pm, YOUTUBE) ? YOUTUBE : null;
+    }
+
+    /** The app that plays a package's links on this TV: YouTube's go to TizenTube when it's here. */
+    private static String player(PackageManager pm, String pkg) {
+        if (YOUTUBE.equals(pkg)) {
+            String yt = youtube(pm);
+            return yt == null ? pkg : yt;
+        }
+        return pkg;
+    }
+
     /** TV app to JustWatch's short code, so the swipe deck only offers what this TV can play. */
     private static final Map<String, String> SHORT = new LinkedHashMap<>();
 
@@ -147,6 +165,7 @@ final class Watch {
                 String tech = o.getJSONObject("package").optString("technicalName");
                 String kind = o.optString("monetizationType");
                 String pkg = APPS.get(tech);
+                if (pkg != null) pkg = player(pm, pkg);
                 String link = o.optString("deeplinkURL", "");
                 if ("null".equals(link)) link = "";
                 JSONObject cur = best.get(tech);
@@ -160,14 +179,15 @@ final class Watch {
                 boolean here = !pkg.isEmpty() && installed(pm, pkg);
                 String link = b.optString("link");
                 JSONObject w = new JSONObject().put("name", b.optString("name")).put("kind", kind(b.optString("kind"))).put("installed", here);
-                if (here && !link.isEmpty()) w.put("id", remember(pkg, link));
+                if (here && !link.isEmpty()) w.put("id", remember(pkg, link, t.optString("title"), t.optString("poster")));
                 where.put(w);
             }
             // Not on any app here with a link: offer a search inside the apps that have one.
             for (Map.Entry<String, String> s : SEARCH_LINKS.entrySet()) {
-                if (!installed(pm, s.getKey())) continue;
-                where.put(new JSONObject().put("name", label(pm, s.getKey())).put("kind", "search").put("installed", true)
-                        .put("id", remember(s.getKey(), s.getValue() + Uri.encode(t.optString("title")))));
+                String app = player(pm, s.getKey());
+                if (!installed(pm, app)) continue;
+                where.put(new JSONObject().put("name", label(pm, app)).put("kind", "search").put("installed", true)
+                        .put("id", remember(app, s.getValue() + Uri.encode(t.optString("title")), t.optString("title"), t.optString("poster"))));
             }
             out.put(new JSONObject().put("title", t.optString("title")).put("year", t.optInt("year"))
                     .put("type", t.optString("type")).put("poster", t.optString("poster")).put("overview", t.optString("overview"))
@@ -183,7 +203,7 @@ final class Watch {
     static JSONObject discover(Context ctx, String genre, int offset) throws Exception {
         PackageManager pm = ctx.getPackageManager();
         java.util.List<String> packages = new java.util.ArrayList<>();
-        for (Map.Entry<String, String> e : SHORT.entrySet()) if (installed(pm, e.getKey())) packages.add(e.getValue());
+        for (Map.Entry<String, String> e : SHORT.entrySet()) if (installed(pm, player(pm, e.getKey()))) packages.add(e.getValue());
         if (packages.isEmpty()) return new JSONObject().put("cards", new JSONArray()).put("error", "No streaming apps found on the TV.");
         // One app per batch, chosen at random, so a big catalogue (Prime, Apple TV) can't fill the whole deck. An app
         // with nothing in this genre or country gives way to the next one.
@@ -227,16 +247,19 @@ final class Watch {
             if (gs != null) for (int k = 0; k < gs.length(); k++) genres.put(gs.getJSONObject(k).optString("shortName"));
             JSONArray where = new JSONArray();
             java.util.Set<String> seen = new java.util.HashSet<>();
+            String posterUrl = c.optString("posterUrl", "").isEmpty() || "null".equals(c.optString("posterUrl")) ? ""
+                    : "https://images.justwatch.com" + c.optString("posterUrl").replace("{profile}", "s592").replace("{format}", "jpg");
             JSONArray offers = n.optJSONArray("offers");
             if (offers != null) for (int k = 0; k < offers.length(); k++) {
                 JSONObject o = offers.getJSONObject(k);
                 String pkg = APPS.get(o.getJSONObject("package").optString("technicalName"));
+                if (pkg != null) pkg = player(pm, pkg);
                 String link = o.optString("deeplinkURL", "");
                 String mt = o.optString("monetizationType");
                 if ("RENT".equals(mt) || "BUY".equals(mt)) continue;
                 if (pkg == null || "null".equals(link) || link.isEmpty() || !installed(pm, pkg) || !seen.add(pkg)) continue;
                 where.put(new JSONObject().put("name", o.getJSONObject("package").optString("clearName"))
-                        .put("kind", kind(o.optString("monetizationType"))).put("id", remember(pkg, link)));
+                        .put("kind", kind(o.optString("monetizationType"))).put("id", remember(pkg, link, c.optString("title"), posterUrl)));
             }
             String poster = c.optString("posterUrl", "");
             if (where.length() == 0 || poster.isEmpty() || "null".equals(poster)) continue;
@@ -270,12 +293,15 @@ final class Watch {
         String[] l = LINKS.get(id == null ? "" : id);
         if (l == null) return new JSONObject().put("error", "Search again, then choose where to watch.");
         String pkg = l[0], link = l[1];
+        // Remembered for the welcome screen's Up next card (only titles a search or the deck found have a name).
+        if (l.length > 3 && !l[2].isEmpty()) recent(ctx, l);
         Intent go;
         if (link.startsWith("intent:")) {
             go = Intent.parseUri(link, Intent.URI_INTENT_SCHEME);
             go.setComponent(null);
             go.setSelector(null);
-            if (go.getPackage() == null) go.setPackage(pkg);
+            // The app chosen for it (TizenTube for a YouTube link), not the one the link names.
+            go.setPackage(pkg);
         } else {
             go = new Intent(Intent.ACTION_VIEW, Uri.parse(link)).setPackage(pkg);
         }
@@ -380,6 +406,31 @@ final class Watch {
         } catch (PackageManager.NameNotFoundException e) {
             return "Search";
         }
+    }
+
+    /** A fresh play id for a saved title (the phone's Up next), so it plays through the same checked path. */
+    static String again(String pkg, String link, String title, String poster) {
+        return remember(pkg, link, title, poster);
+    }
+
+    /** The last title played from the phone, for Up next: {title, poster, pkg, link, at} in stay.json "recent". */
+    private static void recent(Context ctx, String[] l) {
+        try {
+            JSONObject s = Stay.json(ctx);
+            s.put("recent", new JSONObject().put("title", l[2]).put("poster", l[3]).put("pkg", l[0]).put("link", l[1])
+                    .put("at", System.currentTimeMillis()));
+            Stay.write(ctx, s);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private static String remember(String pkg, String link, String title, String poster) {
+        byte[] b = new byte[9];
+        new SecureRandom().nextBytes(b);
+        StringBuilder id = new StringBuilder();
+        for (byte x : b) id.append(String.format("%02x", x));
+        LINKS.put(id.toString(), new String[]{pkg, link, title == null ? "" : title, poster == null ? "" : poster});
+        return id.toString();
     }
 
     private static String remember(String pkg, String link) {
