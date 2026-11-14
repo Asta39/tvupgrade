@@ -14,7 +14,7 @@ Work through the phases in order. Each phase ends with a check: don't move on un
 |---|---|
 | `debloat/tcl-g10-google-tv.txt` | Packages to disable (TCL G10, Google TV 12). Other TVs need their own list |
 | `scripts/debloat.sh <ip>` | Backs up package + settings state to `backup/`, then disables the list |
-| `scripts/install-launcher.sh <ip>` | Builds `launcher/` with Gradle and installs it as Home (disables the stock launcher) |
+| `scripts/install-launcher.sh <ip>` | Builds `launcher/` with Gradle and installs it as Home. The TV's own home and setup app stay on; HomeKeyService sends Home back here |
 | `scripts/push-theme.sh <ip> [theme]` | Pushes `themes/ian-dusk/` (config, wallpapers, depth cut-outs, avatars) and restarts Home |
 | `scripts/grant.sh <ip>` | One-time grants: media sessions, the accessibility service, brightness, DND |
 | `scripts/restore.sh <ip>` | Undo everything |
@@ -63,7 +63,7 @@ Launcher files that carry this fork's features:
 
 1. `scripts/install-launcher.sh <ip>`. Ends with "Home now resolves to com.gathin.tvhome/.MainActivity".
 2. **Every reinstall drops the accessibility service.** Always run right after:
-   `adb shell settings put secure enabled_accessibility_services com.gathin.tvhome/.SleepService`
+   `adb shell settings put secure enabled_accessibility_services com.gathin.tvhome/.SleepService:com.gathin.tvhome/.HomeKeyService`
 3. `scripts/grant.sh <ip>` once (notification listener for Now Playing, accessibility, WRITE_SETTINGS for
    brightness, DND access).
 4. StandBy as the screensaver:

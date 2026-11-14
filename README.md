@@ -159,13 +159,12 @@ puts Google's back.
 
 ## What was removed
 
-Twenty-two packages were **disabled, not uninstalled**: the 21 in [`debloat/tcl-g10-google-tv.txt`](debloat/tcl-g10-google-tv.txt), plus the stock launcher, which the installer turns off once the new Home works:
+Twenty packages were **disabled, not uninstalled**, the ones in [`debloat/tcl-g10-google-tv.txt`](debloat/tcl-g10-google-tv.txt). The Google TV home and its setup app stay **on**: switching them off can make a Google TV restart forever ([couch-tv's finding](https://github.com/Seagey/couch-tv/blob/main/docs/TROUBLESHOOTING.md#if-your-tv-loops-after-a-restart)). Home still opens the new launcher, through Android's Home setting and a small Home-button service. On other models, setup offers to switch off known tracking and ad apps from [`debloat/privacy-list.txt`](debloat/privacy-list.txt), couch-tv's privacy list:
 
 - Samba TV viewing tracking (ACR) and TCL log upload
 - TCL Channel, TCL Live, and the promo rows TCL pushes to the home screen
 - Store demo mode, the e-manual, the repair guide, the TGuard cleaner, MagiConnect and Alexa
 - Google Feedback, TalkBack, YouTube Music and Play Games
-- The stock Google TV launcher and the setup wizard (which takes Home back otherwise)
 
 Kept on purpose: voice/mic, Chromecast, AirPlay/Miracast, the ambient screensaver, the game bar and firmware updates.
 
@@ -247,7 +246,7 @@ One-time grants for Now Playing and Control Center (or run `scripts/grant.sh <tv
 
 ```bash
 adb shell cmd notification allow_listener com.gathin.tvhome/.GuardRevival
-adb shell settings put secure enabled_accessibility_services com.gathin.tvhome/.SleepService
+adb shell settings put secure enabled_accessibility_services com.gathin.tvhome/.SleepService:com.gathin.tvhome/.HomeKeyService
 ```
 
 The debloat list is tested on a **TCL G10** (Android 12, build STT2.230203.001). For any other TV, start from that
@@ -282,6 +281,7 @@ what the app supports and how to report a barrier.
 
 ## Credits
 
+- [couch-tv](https://github.com/Seagey/couch-tv) by Seagey: the privacy list, the rule to keep the TV's own home on, and the Home role request (MIT)
 - [cleanyourtv](https://github.com/Gathin23/cleanyourtv) by Gathin23: the launcher, tools and safety rules (MIT, see [LICENSE](LICENSE))
 - [Outfit](https://fonts.google.com/specimen/Outfit) and [Barlow Condensed](https://fonts.google.com/specimen/Barlow+Condensed) (the clock) typefaces, both SIL Open Font License ([`launcher/FONT-LICENSE-OFL.txt`](launcher/FONT-LICENSE-OFL.txt))
 - Wallpaper photos belong to their photographers

@@ -81,5 +81,6 @@
   ],
   "weather_city": "Nairobi",
   "weather_lat": -1.2864,
-  "weather_lon": 36.8172
+  "weather_lon": 36.8172,
+  "stock_home_redirect": "com.google.android.apps.tv.launcherx"
 }

@@ -26,4 +26,5 @@ com.google.android.marvin.talkback
 com.google.android.youtube.tvmusic
 com.google.android.play.games
 # Batch 4: setup wizard (claims Home on Google TV)
-com.google.android.tungsten.setupwraith
+# com.google.android.tungsten.setupwraith  removed 2026-11-14: switching off the setup app can make Google TVs
+#   loop at every start (couch-tv, docs/TROUBLESHOOTING.md). Keep it on.

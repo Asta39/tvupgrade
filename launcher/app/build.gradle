@@ -62,7 +62,7 @@ android {
 // The default theme and the tested clean-up lists travel inside the APK, for setup without a computer (Setup).
 tasks.register('bundleTheme', Copy) {
     from('../../themes/ian-dusk') { include 'config.json', 'wallpapers/**', 'depth/**' }
-    from('../..') { include 'debloat/tcl-g10-google-tv.txt' }
+    from('../..') { include 'debloat/tcl-g10-google-tv.txt', 'debloat/privacy-list.txt' }
     into layout.buildDirectory.dir('bundled')
 }
 android.sourceSets.main.assets.srcDirs += layout.buildDirectory.dir('bundled').get().asFile

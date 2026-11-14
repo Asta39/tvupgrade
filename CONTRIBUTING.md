@@ -5,6 +5,8 @@ TVs safe.
 
 ## Ground rules
 
+1. **Never switch off the TV's own home screen or setup app**, whatever a list says: some TVs then restart
+   forever ([couch-tv's finding](https://github.com/Seagey/couch-tv/blob/main/docs/TROUBLESHOOTING.md#if-your-tv-loops-after-a-restart)).
 1. **Disable, never uninstall.** Packages are turned off with `pm disable-user`, after a backup, so
    `scripts/restore.sh` can undo everything.
 2. **Debloat lists are per model.** A wrong list can stop a TV from starting (see the Vitron warning in
@@ -27,7 +29,7 @@ scripts/grant.sh <tv ip>              # one-time permissions
 ```
 
 After every reinstall, run
-`adb shell settings put secure enabled_accessibility_services com.gathin.tvhome/.SleepService` again.
+`adb shell settings put secure enabled_accessibility_services com.gathin.tvhome/.SleepService:com.gathin.tvhome/.HomeKeyService` again.
 
 Coding agents: read [`AGENTS.md`](AGENTS.md) and the skill in `.claude/skills/tv-upgrade/` first.
 

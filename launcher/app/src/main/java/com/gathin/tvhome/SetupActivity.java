@@ -353,6 +353,9 @@ public class SetupActivity extends Activity {
             } catch (Exception e) {
                 say("Settings could not be opened from here. Open it with the remote.");
             }
+        }, false), HomeRole.googleTv(this) || HomeRole.held(this) ? null : button("Make it the Home app", () -> {
+            // Plain Android TV 10+: Android's own "default home app" request, no debugging needed (HomeRole).
+            if (!HomeRole.request(this)) say("This TV has no Home app setting. Use Check instead.");
         }, false), button("Skip for now", this::next, false));
     }
 
@@ -388,8 +391,12 @@ public class SetupActivity extends Activity {
     }
 
     private void cleanUp() {
-        header("Turn off the clutter?", "This TV model has a tested list of " + cleanup.size() + " preinstalled ad, tracking "
-                + "and promo apps. They are only turned off, never removed, and each can be turned back on in Settings.");
+        header("Turn off the clutter?", (Setup.lastWasModelList
+                ? "This TV model has a tested list of " + cleanup.size() + " preinstalled ad, tracking and promo apps."
+                : "This TV has " + cleanup.size() + " known tracking or ad app" + (cleanup.size() == 1 ? "" : "s")
+                + " (from couch-tv's privacy list).")
+                + " They are only turned off, never removed, and each can be turned back on in Settings. The TV's own "
+                + "home screen and setup always stay on.");
         status = text("", 17, 0xFFFFD27A, R.string.font_medium);
         page.addView(status);
         space();

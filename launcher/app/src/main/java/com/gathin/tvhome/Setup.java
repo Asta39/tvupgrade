@@ -98,6 +98,9 @@ final class Setup {
         List<Person> named = new ArrayList<>();
         for (Person p : people) if (!p.apps.isEmpty()) named.add(p);
         if (!named.isEmpty()) json.put("dock_apps", new JSONArray(named.get(0).apps));
+        // Home: the TV's own home stays on, and HomeKeyService sends it back here.
+        String stock = stockHome(ctx);
+        if (!stock.isEmpty()) json.put("stock_home_redirect", stock);
         // The home row holds what was picked and nothing else: no topping up from the other apps.
         json.put("fill_dock", false);
         if (named.size() > 1) {
@@ -131,18 +134,46 @@ final class Setup {
         run(adb, failed, "Brightness", "appops set " + pkg + " WRITE_SETTINGS allow");
         run(adb, failed, "TV listings", "pm grant " + pkg + " android.permission.READ_TV_LISTINGS");
         run(adb, failed, "Settings access", "pm grant " + pkg + " android.permission.WRITE_SECURE_SETTINGS");
-        // Sleep, Night Shift and Screen off: add the service to whatever accessibility services are already on.
-        // The setting may hold the short form (pkg/.SleepService) or the long one; either counts as already on.
-        String service = new android.content.ComponentName(ctx, SleepService.class).flattenToShortString();
+        // Sleep, Night Shift and Screen off (SleepService), and the Home button (HomeKeyService, which sends the TV's
+        // own home back here: that home stays on, see keepStockHomeOn). Added to whatever services are already on;
+        // the setting may hold the short form (pkg/.SleepService) or the long one, and either counts as on.
         String on = adb.shell("settings get secure enabled_accessibility_services");
-        if (on.isEmpty() || "null".equals(on)) on = service;
-        else if (!on.contains(service) && !on.contains(pkg + "/" + SleepService.class.getName())) on = on + ":" + service;
-        run(adb, failed, "Sleep and Night Shift", "settings put secure enabled_accessibility_services " + on);
+        if ("null".equals(on)) on = "";
+        for (Class<?> c : new Class<?>[]{SleepService.class, HomeKeyService.class}) {
+            String service = new android.content.ComponentName(ctx, c).flattenToShortString();
+            if (!on.contains(service) && !on.contains(pkg + "/" + c.getName())) on = on.isEmpty() ? service : on + ":" + service;
+        }
+        run(adb, failed, "Sleep and the Home button", "settings put secure enabled_accessibility_services " + on);
         adb.shell("settings put secure accessibility_enabled 1");
         run(adb, failed, "StandBy screensaver", "settings put secure screensaver_components " + pkg + "/" + StandByDream.class.getName());
+        keepStockHomeOn(adb);
         String home = adb.shell("cmd package set-home-activity --user 0 " + pkg + "/" + MainActivity.class.getName());
         if (!home.contains("Success")) failed.add("Home button");
         return failed;
+    }
+
+    /**
+     * The TV's own home screen and setup app stay on. Switching them off can make a Google TV restart forever
+     * (couch-tv, github.com/Seagey/couch-tv, docs/TROUBLESHOOTING.md; our Vitron hung the same way). Earlier
+     * versions of this project did switch them off, so turn them back on; a no-op when they are on or missing.
+     */
+    static void keepStockHomeOn(LocalAdb adb) throws Exception {
+        for (String p : NEVER_OFF) adb.shell("pm enable " + p);
+    }
+
+    /** Home screens and setup apps nobody may switch off, whatever a list says (couch-tv's apply.sh, NEVER_OFF). */
+    static final String[] NEVER_OFF = {"com.google.android.apps.tv.launcherx", "com.google.android.tvlauncher",
+            "com.google.android.leanbacklauncher", "com.google.android.tungsten.setupwraith"};
+
+    /** The TV's own home screen, for HomeKeyService's stock_home_redirect; empty when this launcher is the only one. */
+    static String stockHome(Context ctx) {
+        PackageManager pm = ctx.getPackageManager();
+        Intent home = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME);
+        for (ResolveInfo r : pm.queryIntentActivities(home, PackageManager.MATCH_DISABLED_COMPONENTS)) {
+            String p = r.activityInfo.packageName;
+            if (!p.equals(ctx.getPackageName()) && !p.equals("android") && !p.contains("setup") && !p.contains("provision")) return p;
+        }
+        return "";
     }
 
     private static void run(LocalAdb adb, List<String> failed, String what, String command) throws Exception {
@@ -151,15 +182,15 @@ final class Setup {
     }
 
     /**
-     * The tested clean-up list for this exact TV model (assets debloat/, named in its "# model:" line), or empty:
-     * turning packages off on a model nobody tested can stop a TV from starting, so there is no generic list.
+     * What setup offers to switch off: this exact model's tested list (assets debloat/, named in its "# model:"
+     * line), else couch-tv's privacy list of known tracking, ad and ACR apps. Either way only apps this TV has and
+     * has on, and only those that pass safeToDisable.
      */
     static List<String> cleanup(Context ctx) {
-        List<String> packages = new ArrayList<>();
+        List<String> model = null, privacy = new ArrayList<>();
         try {
             String[] lists = ctx.getAssets().list("debloat");
-            if (lists == null) return packages;
-            for (String name : lists) {
+            if (lists != null) for (String name : lists) {
                 String text = new String(read(ctx.getAssets().open("debloat/" + name)), StandardCharsets.UTF_8);
                 boolean mine = false;
                 List<String> found = new ArrayList<>();
@@ -168,13 +199,56 @@ final class Setup {
                     if (t.startsWith("# model:")) mine = isThisTv(t.substring(8).trim());
                     int hash = t.indexOf('#');
                     if (hash >= 0) t = t.substring(0, hash).trim();
+                    // privacy-list.txt has fields split by "|": the package is the first.
+                    int bar = t.indexOf('|');
+                    if (bar >= 0) t = t.substring(0, bar).trim();
                     if (t.matches("[A-Za-z0-9._]+")) found.add(t);
                 }
-                if (mine) return found;
+                if (mine) model = found;
+                else if (name.startsWith("privacy")) privacy = found;
             }
         } catch (Exception ignored) {
         }
-        return packages;
+        lastWasModelList = model != null;
+        List<String> out = new ArrayList<>();
+        PackageManager pm = ctx.getPackageManager();
+        for (String p : model != null ? model : privacy) {
+            if (installedAndOn(pm, p) && safeToDisable(ctx, p)) out.add(p);
+        }
+        return out;
+    }
+
+    /** Whether cleanup() used this model's tested list (true) or the general privacy list (false). */
+    static boolean lastWasModelList;
+
+    private static boolean installedAndOn(PackageManager pm, String p) {
+        try {
+            return pm.getApplicationInfo(p, 0).enabled;
+        } catch (PackageManager.NameNotFoundException e) {
+            return false;
+        }
+    }
+
+    /**
+     * couch-tv's safety check, kept whatever a list says: never a home screen, a setup app, an app with a persistent
+     * process, or a core part of Android, Google Play or the remote, voice and TV inputs.
+     */
+    static boolean safeToDisable(Context ctx, String p) {
+        for (String never : NEVER_OFF) if (never.equals(p)) return false;
+        if (p.equals(ctx.getPackageName()) || p.equals("android") || p.startsWith("com.android.")
+                || p.equals("com.google.android.gms") || p.equals("com.google.android.gsf") || p.contains("webview")
+                || p.equals("com.google.android.tv.remote.service") || p.equals("com.google.android.katniss")
+                || p.contains("setupwizard") || p.endsWith(".setup") || p.contains("provision")
+                || p.startsWith("com.google.android.providers.") || p.startsWith("com.google.android.ext.")) return false;
+        PackageManager pm = ctx.getPackageManager();
+        Intent home = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).setPackage(p);
+        if (!pm.queryIntentActivities(home, PackageManager.MATCH_DISABLED_COMPONENTS).isEmpty()) return false;
+        try {
+            if ((pm.getApplicationInfo(p, 0).flags & android.content.pm.ApplicationInfo.FLAG_PERSISTENT) != 0) return false;
+        } catch (PackageManager.NameNotFoundException e) {
+            return false;
+        }
+        return true;
     }
 
     /** Firmware names a TV differently in its model, device and product fields; a list may use any of them. */

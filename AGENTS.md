@@ -12,6 +12,8 @@ as a document.
 
 ## Rules that are never optional
 
+1. **Never switch off the TV's own home screen or setup app.** Some TVs then restart forever and can't be reached
+   again without a factory reset. Home reaches this launcher through `set-home-activity` and HomeKeyService.
 1. **Disable, never uninstall.** Packages are turned off with `pm disable-user`, after a backup
    (`scripts/debloat.sh` makes one). Everything must stay undoable with `scripts/restore.sh`.
 2. **Ask the owner before anything leaves the machine or changes the TV's state** beyond what they asked for:
