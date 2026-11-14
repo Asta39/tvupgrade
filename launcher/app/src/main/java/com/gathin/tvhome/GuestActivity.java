@@ -258,20 +258,19 @@ public class GuestActivity extends Activity {
         cards.addView(weather);
         showWeather();
         if (!stay.doorCode.isEmpty()) cards.addView(card("Door code", stay.doorCode, "During your stay", null));
-        // Fewer cards keep their width; more share the row.
+        // The phone page's code is one more card, right after the weather, until a phone has used it.
+        qrView = HostServer.claimCode != null || qrOpen ? qrCard() : null;
+        if (qrView != null) cards.addView(qrView, Math.min(cards.getChildCount(), cards.indexOfChild(weather) + 1));
+        // Fewer cards keep their width; more share the row. The code card is a little wider, for the address.
         for (int i = 0; i < cards.getChildCount(); i++) {
             View c = cards.getChildAt(i);
-            c.setLayoutParams(cards.getChildCount() >= 3 ? weighted() : c.getLayoutParams());
-        }
-        // The phone page's code sits on the right, apart from the cards.
-        if (qrView != null) screen.removeView(qrView);
-        qrView = HostServer.claimCode != null || qrOpen ? qrCard() : null;
-        if (qrView != null) {
-            // Beside the welcome, just above the cards: clear of the clock in 12- and 24-hour time.
-            FrameLayout.LayoutParams ql = new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.END);
-            ql.bottomMargin = px(236);
-            ql.rightMargin = px(56);
-            screen.addView(qrView, ql);
+            float share = c == qrView ? 1.45f : 1f;
+            if (cards.getChildCount() >= 3) c.setLayoutParams(weighted(share));
+            else {
+                LinearLayout.LayoutParams l = new LinearLayout.LayoutParams(Math.round(px(214) * share), -1);
+                l.rightMargin = px(12);
+                c.setLayoutParams(l);
+            }
         }
         // The host may have changed which apps guests can open.
         if (barScroll != null && barScroll.getChildCount() > 0) {
@@ -288,36 +287,38 @@ public class GuestActivity extends Activity {
         String url = HostServer.url(this);
         if (url == null) return null;
         String code = HostServer.claimCode;
-        Bitmap bmp = HostQr.bitmap(code != null ? url + "#claim=" + code : url, px(88));
+        Bitmap bmp = HostQr.bitmap(code != null ? url + "#claim=" + code : url, px(84));
         if (bmp == null) return null;
-        FrostedLayout frost = new FrostedLayout(this, 22, CARD_TINT);
+        FrostedLayout frost = new FrostedLayout(this, 20, CARD_TINT);
         LinearLayout box = new LinearLayout(this);
         box.setGravity(Gravity.CENTER_VERTICAL);
-        box.setPadding(px(12), px(12), px(18), px(12));
-        frost.addView(box);
+        box.setPadding(px(12), px(12), px(14), px(12));
+        frost.addView(box, new FrameLayout.LayoutParams(-1, -1));
         ImageView q = new ImageView(this);
         q.setImageBitmap(bmp);
-        box.addView(q, new LinearLayout.LayoutParams(px(88), px(88)));
+        box.addView(q, new LinearLayout.LayoutParams(px(84), px(84)));
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
         col.setPadding(px(12), 0, 0, 0);
-        TextView h = text(code != null ? "Host setup · code " + code : "Remote and house info", 11, 0xB3FFFFFF, R.string.font_medium);
-        h.setLetterSpacing(0.06f);
+        TextView h = text(code != null ? "Host setup" : "On your phone", 11, 0xB3FFFFFF, R.string.font_medium);
+        h.setLetterSpacing(0.08f);
         col.addView(h);
-        // Some scanners show the link as text instead of opening it: say what to do with it.
-        String address = url.replaceFirst("^http://", "").replaceAll("/$", "");
-        TextView b = text(address, 17, Color.WHITE, R.string.font_medium);
-        col.addView(b, lp(-2, -2, 6));
-        String wifi = stay.wifiName.isEmpty() ? "this TV's Wi-Fi" : stay.wifiName;
-        TextView how = text("1. Join the Wi-Fi " + wifi + "\n2. Scan, or type this into your browser", 12, 0xCCFFFFFF, R.string.font_regular);
-        how.setLineSpacing(px(2), 1f);
-        col.addView(how, lp(-2, -2, 4));
-        box.addView(col);
+        TextView b = text(code != null ? code : "Remote and info", code != null ? 19 : 16, Color.WHITE, R.string.font_medium);
+        if (code != null) b.setLetterSpacing(0.1f);
+        b.setMaxLines(1);
+        col.addView(b, lp(-1, -2, 6));
+        // Some scanners show the link as text: the address to type, and the Wi-Fi to join first.
+        String wifi = stay.wifiName.isEmpty() ? "" : "Join " + stay.wifiName + ", then scan\n";
+        TextView how = text(wifi + url.replaceFirst("^http://", "").replaceAll("/$", ""), 12, 0xCCFFFFFF, R.string.font_regular);
+        how.setMaxLines(2);
+        how.setEllipsize(TextUtils.TruncateAt.END);
+        col.addView(how, lp(-1, -2, 2));
+        box.addView(col, new LinearLayout.LayoutParams(0, -2, 1f));
         return frost;
     }
 
-    private LinearLayout.LayoutParams weighted() {
-        LinearLayout.LayoutParams l = new LinearLayout.LayoutParams(0, -1, 1f);
+    private LinearLayout.LayoutParams weighted(float share) {
+        LinearLayout.LayoutParams l = new LinearLayout.LayoutParams(0, -1, share);
         l.rightMargin = px(12);
         return l;
     }
