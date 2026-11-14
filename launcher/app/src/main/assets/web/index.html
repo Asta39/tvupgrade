@@ -3,156 +3,236 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#000000">
+<meta name="theme-color" content="#050506">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>Home for TV</title>
 <style>
+  /* The look follows couch-tv's phone remote (github.com/Seagey/couch-tv, remote/src/styles.css, MIT): one glass
+     material over a blurred picture, round glass controls, a floating pill to move between pages. */
   :root {
-    --bg: #000; --card: #1c1c1e; --fill: #2c2c2e; --fill2: #3a3a3c; --sep: #38383a;
-    --text: #fff; --dim: #98989f; --faint: #636366; --blue: #0a84ff; --green: #30d158; --red: #ff453a; --orange: #ff9f0a;
+    color-scheme: dark;
+    --ink: #fff; --ink-2: rgba(255,255,255,.74); --ink-3: rgba(255,255,255,.58);
+    --glass: rgba(255,255,255,.13); --glass-press: rgba(255,255,255,.24); --rim: rgba(255,255,255,.17);
+    --sheet: rgba(30,30,34,.55); --sep: rgba(255,255,255,.12);
+    --blue: #0a84ff; --green: #30d158; --red: #ff6961; --orange: #ff9f0a;
+    --gap: 12px; --side: 18px; --ctl: 56px; --ask-h: 58px; --nav-h: 60px;
+    --ease: cubic-bezier(.22,1,.36,1);
+    --sat: env(safe-area-inset-top, 0px); --sab: env(safe-area-inset-bottom, 0px);
+    --font: -apple-system, "SF Pro Text", system-ui, Inter, Roboto, "Helvetica Neue", sans-serif;
+    --font-d: -apple-system, "SF Pro Display", system-ui, Inter, Roboto, "Helvetica Neue", sans-serif;
   }
-  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body { margin: 0; background: var(--bg); color: var(--text); }
-  body { font: 17px/1.35 -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, Roboto, "Segoe UI", sans-serif;
-    -webkit-font-smoothing: antialiased; }
-  main { max-width: 520px; margin: 0 auto; padding: calc(24px + env(safe-area-inset-top)) 20px calc(110px + env(safe-area-inset-bottom)); }
-  h1 { font-size: 34px; line-height: 1.1; font-weight: 700; letter-spacing: -.02em; margin: 4px 0 6px; }
-  .eyebrow { font-size: 13px; font-weight: 600; letter-spacing: .06em; color: var(--dim); text-transform: uppercase; }
-  .sub { font-size: 15px; color: var(--dim); margin: 0; }
+  @media (max-height: 740px) { :root { --gap: 10px; --ctl: 52px; --ask-h: 54px; --nav-h: 56px; } }
+  @media (max-height: 640px) { :root { --gap: 8px; --ctl: 48px; --ask-h: 50px; } }
+  @media (max-width: 360px) { :root { --side: 14px; --ctl: 50px; } }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; background: #050506; }
+  body { color: var(--ink); font: 400 16px/1.35 var(--font); -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; touch-action: manipulation; }
+  input { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid rgba(255,255,255,.85); outline-offset: 2px; }
+
+  /* backdrop: the TV's picture (or what's playing), blurred */
+  .backdrop { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; background: #050506; }
+  .bd-layer { position: absolute; inset: -80px; background-size: cover; background-position: center;
+    filter: blur(48px) saturate(1.5) brightness(.55); opacity: 0; transition: opacity .9s var(--ease); }
+  .bd-layer.on { opacity: 1; }
+  .bd-shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,.15), rgba(0,0,0,.05) 30%, rgba(0,0,0,.45)); }
+
+  /* the one material */
+  .glass { background: var(--glass); border: 1px solid var(--rim);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.16), 0 6px 20px rgba(0,0,0,.22);
+    -webkit-backdrop-filter: blur(28px) saturate(1.7); backdrop-filter: blur(28px) saturate(1.7); }
+  button.glass:active, .round:active { background: var(--glass-press); }
+  .solid { background: #fff; color: #0b0b0d; }
+  button.solid:active { background: #d9d9de; }
+
+  main { position: relative; z-index: 1; max-width: 560px; margin: 0 auto;
+    padding: calc(var(--sat) + 14px) var(--side) calc(var(--sab) + var(--nav-h) + 34px); min-height: 100%; }
+  main.fit { height: 100dvh; min-height: 0; display: flex; flex-direction: column; gap: var(--gap);
+    padding-bottom: calc(var(--sab) + var(--nav-h) + 26px); }
+
+  h1 { font: 700 clamp(28px, 8.5vw, 34px)/1.1 var(--font-d); letter-spacing: -.02em; margin: 6px 0 4px; text-wrap: balance; }
+  .eyebrow { font-size: 13px; font-weight: 600; letter-spacing: .06em; color: var(--ink-3); text-transform: uppercase; }
+  .sub { color: var(--ink-2); font-size: 15px; }
   .section { margin-top: 22px; }
   .section > .eyebrow { display: block; padding: 0 4px 8px; }
-  .note { font-size: 13px; color: var(--dim); padding: 8px 4px 0; line-height: 1.4; }
-  .card { background: var(--card); border-radius: 20px; }
-  .list { background: var(--card); border-radius: 16px; padding: 0 16px; }
+  .note { font-size: 13px; color: var(--ink-3); padding: 8px 4px 0; line-height: 1.4; }
+  .muted { color: var(--ink-3); }
+  .err { color: var(--red); font-size: 14px; min-height: 20px; padding: 8px 4px 0; }
+
+  /* grouped lists on glass */
+  .list { border-radius: 20px; padding: 0 16px; }
   .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; border-bottom: 1px solid var(--sep); }
   .row:last-child { border-bottom: 0; }
-  .row .k { color: var(--dim); }
-  .row .v { font-weight: 600; text-align: right; }
-  .row input, .row select { border: 0; background: none; color: var(--text); font: inherit; text-align: right; outline: none; min-width: 0; flex: 1 1 auto; }
-  .row input::placeholder { color: var(--faint); }
-  .row input[type=date], .row input[type=time] { flex: 0 0 auto; background: var(--fill); border-radius: 8px; padding: 6px 10px; color-scheme: dark; }
-  .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 20px; }
-  .tile { background: var(--card); border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
-  .tile .label { font-size: 13px; color: var(--dim); }
-  .tile .big { font-size: 28px; font-weight: 700; }
-  button { font: inherit; cursor: pointer; }
-  .btn { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; border: 0; border-radius: 16px; min-height: 52px;
-    font-weight: 600; font-size: 17px; background: var(--card); color: var(--text); text-decoration: none; }
-  .btn.white { background: #fff; color: #000; }
-  .btn.blue { background: var(--blue); color: #fff; }
+  .row .k { color: var(--ink-2); }
+  .row .v { font-weight: 600; text-align: right; overflow-wrap: anywhere; }
+  .row input:not([type=checkbox]) { border: 0; background: none; outline: none; text-align: right; min-width: 0; flex: 1 1 auto; }
+  .row input::placeholder { color: var(--ink-3); }
+  .row input[type=date], .row input[type=time] { flex: 0 0 auto; background: rgba(255,255,255,.12); border-radius: 8px; padding: 6px 10px; color-scheme: dark; }
+  .two-line { display: flex; flex-direction: column; text-align: left; min-width: 0; }
+  .two-line small { font-size: 13px; color: var(--ink-3); }
+
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-top: 18px; }
+  .tile { border-radius: 22px; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+  .tile .label { font-size: 13px; color: var(--ink-2); }
+  .tile .big { font: 700 28px var(--font-d); }
+
+  .btn { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; border-radius: 999px; min-height: var(--ask-h);
+    font-weight: 600; font-size: 17px; text-decoration: none; }
   .btn.red { color: var(--red); }
-  .btn:active, .key:active, .pad:active .ok { transform: scale(.97); }
-  .link { border: 0; background: none; color: var(--blue); font-weight: 600; font-size: 15px; padding: 6px 0; min-height: 36px; }
-  .pill { border: 0; background: var(--blue); color: #fff; font-weight: 600; font-size: 15px; padding: 8px 14px; border-radius: 999px; min-height: 36px; }
-  .status { display: inline-flex; align-items: center; gap: 6px; background: var(--card); border-radius: 999px; padding: 6px 12px; font-size: 13px; color: var(--green); }
+  .link { color: #64b5ff; font-weight: 600; font-size: 15px; padding: 6px 0; min-height: 36px; }
+  .pill { background: #fff; color: #000; font-weight: 600; font-size: 15px; padding: 8px 16px; border-radius: 999px; min-height: 36px; }
+  .status { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 6px 12px; font-size: 13px; color: var(--green); }
   .status i { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
-  .status.off { color: var(--dim); } .status.off i { background: var(--faint); }
-  .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--fill); border-radius: 10px; padding: 2px; margin: 12px 0; }
-  .seg button { border: 0; background: none; color: var(--dim); font-weight: 600; font-size: 15px; border-radius: 8px; min-height: 34px; }
-  .seg button.on { background: var(--faint); color: #fff; }
+  .status.off { color: var(--ink-3); } .status.off i { background: var(--ink-3); }
+  .seg { display: flex; padding: 3px; border-radius: 22px; }
+  .seg button { flex: 1 1 0; height: 38px; padding: 0 10px; border-radius: 19px; font-weight: 600; font-size: 15px; color: var(--ink-2);
+    transition: background .2s var(--ease), color .2s; white-space: nowrap; }
+  .seg button.on { background: rgba(255,255,255,.26); color: var(--ink); box-shadow: inset 0 1px 0 rgba(255,255,255,.2); }
   .switch { position: relative; width: 51px; height: 31px; flex: 0 0 auto; }
   .switch input { position: absolute; opacity: 0; inset: 0; margin: 0; }
-  .switch i { position: absolute; inset: 0; background: var(--fill2); border-radius: 31px; transition: .2s; pointer-events: none; }
-  .switch i::after { content: ""; position: absolute; left: 2px; top: 2px; width: 27px; height: 27px; border-radius: 50%; background: #fff; transition: .2s; }
+  .switch i { position: absolute; inset: 0; background: rgba(120,120,128,.36); border-radius: 31px; transition: .2s; pointer-events: none; }
+  .switch i::after { content: ""; position: absolute; left: 2px; top: 2px; width: 27px; height: 27px; border-radius: 50%; background: #fff; transition: .2s var(--ease); }
   .switch input:checked + i { background: var(--green); }
   .switch input:checked + i::after { transform: translateX(20px); }
-  .two-line { display: flex; flex-direction: column; text-align: left; }
-  .two-line small { font-size: 13px; color: var(--dim); }
-  .icon { width: 30px; height: 30px; border-radius: 8px; flex: 0 0 auto; background: var(--fill2); object-fit: cover; }
+  .icon { width: 30px; height: 30px; border-radius: 8px; flex: 0 0 auto; background: rgba(255,255,255,.12); object-fit: cover; }
+
+  /* floating pill navigation, like iOS */
+  nav.dock { position: fixed; z-index: 6; left: 50%; transform: translateX(-50%); bottom: calc(var(--sab) + 14px);
+    display: flex; gap: 2px; padding: 4px; border-radius: 999px; max-width: calc(100% - 2 * var(--side)); }
+  nav.dock button { display: flex; align-items: center; gap: 7px; height: calc(var(--nav-h) - 8px); padding: 0 16px; border-radius: 999px;
+    color: var(--ink-2); font-weight: 600; font-size: 15px; white-space: nowrap; transition: background .25s var(--ease), color .2s; }
+  nav.dock button.on { background: rgba(255,255,255,.24); color: var(--ink); box-shadow: inset 0 1px 0 rgba(255,255,255,.2); }
+  @media (max-width: 400px) { nav.dock button { padding: 0 12px; font-size: 14px; } nav.dock.many button span { display: none; } nav.dock.many button { padding: 0 16px; } }
+
+  /* sticky actions sit above the pill, never behind it */
+  .actions { position: fixed; z-index: 5; left: 0; right: 0; bottom: calc(var(--sab) + var(--nav-h) + 26px); padding: 0 var(--side); }
+  .actions > div { max-width: 560px; margin: 0 auto; }
+  main.has-actions { padding-bottom: calc(var(--sab) + var(--nav-h) + var(--ask-h) + 48px); }
+
   /* remote */
-  .pad { position: relative; height: 300px; margin-top: 18px; border-radius: 36px; background: var(--card); border: 1px solid var(--fill);
-    display: grid; place-items: center; touch-action: none; user-select: none; }
-  .pad .chev { position: absolute; color: var(--faint); }
-  .pad .ok { width: 96px; height: 96px; border-radius: 50%; border: 0; background: var(--fill); color: #fff; font-weight: 600; font-size: 15px; }
-  .pad .hint { position: absolute; bottom: 44px; font-size: 12px; color: var(--faint); }
-  .pad.flash { background: #232325; }
-  .keys { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; justify-items: center; margin-top: 18px; }
-  .key { width: 64px; height: 64px; border-radius: 50%; border: 0; background: var(--card); color: #fff; display: grid; place-items: center; }
-  .vol { display: flex; align-items: center; gap: 12px; background: var(--card); border-radius: 999px; padding: 6px; margin-top: 18px; }
-  .vol .key { width: 52px; height: 52px; background: var(--fill); font-size: 24px; font-weight: 600; }
-  .vol .mid { flex: 1 1 auto; display: flex; flex-direction: column; align-items: center; font-size: 13px; color: var(--dim); }
-  .apps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-  .app { border: 0; background: var(--card); border-radius: 16px; min-height: 76px; display: flex; flex-direction: column; align-items: center;
-    justify-content: center; gap: 6px; color: #fff; font-size: 12px; font-weight: 500; padding: 8px 4px; }
-  .app span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  /* ask */
-  .ask { background: var(--card); border-radius: 20px; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
-  .field { display: flex; align-items: center; gap: 10px; background: var(--fill); border-radius: 12px; padding: 0 12px; min-height: 44px; }
-  .field input { flex: 1 1 auto; border: 0; background: none; color: #fff; font: inherit; outline: none; min-width: 0; }
-  .chips { display: flex; gap: 8px; flex-wrap: wrap; }
-  .chips button { border: 0; background: var(--fill); color: #fff; font-size: 14px; font-weight: 500; border-radius: 999px; padding: 8px 14px; min-height: 36px; }
-  .answer { font-size: 16px; line-height: 1.45; white-space: pre-wrap; }
-  .title { display: flex; gap: 12px; padding: 12px 0; border-top: 1px solid var(--sep); }
-  .title:first-child { border-top: 0; }
-  .poster { width: 56px; height: 84px; border-radius: 8px; object-fit: cover; background: var(--fill); flex: 0 0 auto; }
+  .now { border-radius: 24px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; flex: 0 0 auto; }
+  [hidden] { display: none !important; }
+  .now-head { display: flex; align-items: center; gap: 14px; }
+  .now-art { flex: none; width: 52px; height: 52px; border-radius: 10px; object-fit: cover; background: rgba(255,255,255,.1); box-shadow: 0 8px 22px rgba(0,0,0,.4); }
+  .now-title { font: 700 19px/1.2 var(--font-d); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; }
+  .now-sub { color: var(--ink-2); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar { height: 5px; border-radius: 3px; background: rgba(255,255,255,.22); overflow: hidden; }
+  .bar i { display: block; height: 100%; background: rgba(255,255,255,.92); border-radius: 3px; }
+  .times { display: flex; justify-content: space-between; font-size: 12px; color: var(--ink-3); margin-top: -4px; }
+  .row-ctl { display: flex; justify-content: space-between; gap: var(--gap); flex: 0 0 auto; }
+  .round { width: var(--ctl); height: var(--ctl); border-radius: 50%; display: grid; place-items: center; flex: 0 0 auto; }
+  .pad { position: relative; flex: 1 1 auto; min-height: 170px; border-radius: 32px; display: grid; place-items: center; touch-action: none; user-select: none; -webkit-user-select: none; }
+  .pad .chev { position: absolute; opacity: .38; transition: opacity .35s, transform .35s var(--ease); }
+  .pad .chev.up { top: 14px; } .pad .chev.down { bottom: 14px; } .pad .chev.left { left: 14px; } .pad .chev.right { right: 14px; }
+  .pad .chev.lit { opacity: 1; transition: none; }
+  .pad .ring { width: 88px; height: 88px; border-radius: 50%; border: 1.5px solid rgba(255,255,255,.24); transition: background .35s, transform .35s var(--ease); }
+  .pad .ring.lit { background: rgba(255,255,255,.16); transform: scale(.94); transition: none; }
+  .pad .hint { position: absolute; top: calc(50% + 58px); font-size: 13px; color: var(--ink-3); pointer-events: none; }
+  @media (max-height: 640px) { .pad .hint { display: none; } }
+  .volume { flex: 1 1 auto; display: flex; align-items: center; justify-content: space-between; border-radius: 999px; height: var(--ctl); padding: 0 6px; min-width: 0; }
+  .volume button { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font-size: 22px; }
+  .volume button:active { background: var(--glass-press); }
+  .ask-btn { flex: 0 0 auto; }
+
+  /* watch */
+  .field { display: flex; align-items: center; gap: 10px; border-radius: 999px; padding: 0 16px; min-height: 50px; }
+  .field input { flex: 1 1 auto; border: 0; background: none; outline: none; min-width: 0; font-size: 17px; }
+  .field input::placeholder { color: var(--ink-3); }
+  .results { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+  .title { display: flex; gap: 12px; border-radius: 20px; padding: 10px; }
+  .poster { width: 64px; aspect-ratio: 2/3; border-radius: 10px; object-fit: cover; background: rgba(255,255,255,.1); flex: 0 0 auto; }
   .tinfo { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-  .tinfo small { color: var(--dim); font-size: 13px; }
+  .tinfo small { color: var(--ink-3); font-size: 13px; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chips button { background: rgba(255,255,255,.16); font-size: 14px; font-weight: 600; border-radius: 999px; padding: 8px 14px; min-height: 36px; }
+  .chips button:active { background: var(--glass-press); }
   .chips button.on { background: var(--blue); }
-  .rules .row { justify-content: flex-start; }
-  .rule-x { width: 22px; height: 22px; border-radius: 50%; border: 0; background: var(--red); color: #fff; font-weight: 700; line-height: 1; flex: 0 0 auto; padding: 0; }
-  .move { border: 0; background: none; color: var(--faint); padding: 4px; min-width: 32px; min-height: 32px; }
-  /* code boxes */
-  .code { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
-  .code input { height: 56px; border-radius: 14px; background: var(--card); border: 2px solid transparent; color: #fff; text-align: center;
-    font: 600 26px -apple-system, Inter, sans-serif; outline: none; min-width: 0; }
+  .apps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px 10px; }
+  .app { display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-2); min-width: 0; }
+  .app img { width: 100%; max-width: 72px; aspect-ratio: 1; border-radius: 22%; object-fit: cover; box-shadow: 0 6px 18px rgba(0,0,0,.35); background: rgba(255,255,255,.1); }
+  .app span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .shelf { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 6px; margin: 0 calc(-1 * var(--side)); padding-left: var(--side); padding-right: var(--side); scrollbar-width: none; }
+  .shelf::-webkit-scrollbar { display: none; }
+  .shelf .pick { flex: 0 0 auto; width: 118px; scroll-snap-align: start; display: flex; flex-direction: column; gap: 6px; text-align: left; }
+  .shelf .pick img { width: 100%; aspect-ratio: 2/3; border-radius: 14px; object-fit: cover; box-shadow: 0 8px 22px rgba(0,0,0,.4); }
+  .shelf .pick b { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .shelf .pick small { font-size: 12px; color: var(--ink-3); }
+
+  /* the swipe deck */
+  .deck { position: relative; height: min(68vh, 560px); min-height: 380px; margin-top: 12px; touch-action: pan-y; }
+  .card { position: absolute; inset: 0; border-radius: 26px; overflow: hidden; background: #111 center/cover no-repeat;
+    box-shadow: 0 18px 40px rgba(0,0,0,.45); will-change: transform; user-select: none; -webkit-user-select: none;
+    transition: transform .35s var(--ease), opacity .35s; touch-action: pan-y; }
+  .card.drag { transition: none; }
+  .card .shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0) 45%, rgba(0,0,0,.85)); }
+  .card .meta { position: absolute; left: 18px; right: 18px; bottom: 16px; display: flex; flex-direction: column; gap: 6px; }
+  .card .meta b { font: 700 24px/1.15 var(--font-d); text-shadow: 0 2px 12px rgba(0,0,0,.5); }
+  .card .meta small { color: var(--ink-2); font-size: 14px; }
+  .card .tags { display: flex; gap: 6px; flex-wrap: wrap; }
+  .card .tags span { font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: rgba(255,255,255,.18);
+    -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+  .stamp { position: absolute; top: 22px; padding: 6px 14px; border-radius: 10px; font: 800 24px var(--font-d); letter-spacing: .06em;
+    border: 3px solid; opacity: 0; transform: rotate(-12deg); }
+  .stamp.like { left: 18px; color: var(--green); }
+  .stamp.nope { right: 18px; color: var(--red); transform: rotate(12deg); }
+  .deck-ctl { display: flex; justify-content: center; align-items: center; gap: 18px; margin-top: 14px; }
+  .deck-ctl .round { width: 58px; height: 58px; }
+  .deck-ctl .round.big { width: 68px; height: 68px; }
+  .deck-msg { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; color: var(--ink-3); padding: 24px; border-radius: 26px; }
+
+  .code { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+  .code input { height: 56px; border-radius: 14px; text-align: center; font: 600 26px var(--font-d); outline: none; min-width: 0; border: 1px solid var(--rim); background: var(--glass); }
   .code input:focus { border-color: var(--blue); }
-  /* tab bar */
-  nav.tabs { position: fixed; left: 0; right: 0; bottom: 0; display: grid; background: rgba(18,18,18,.92); backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px); border-top: 1px solid var(--fill); padding: 8px 0 calc(8px + env(safe-area-inset-bottom)); z-index: 5; }
-  nav.tabs button { border: 0; background: none; color: #8e8e93; font-size: 11px; font-weight: 500; display: flex; flex-direction: column;
-    align-items: center; gap: 4px; min-height: 44px; }
-  nav.tabs button.on { color: var(--blue); }
-  .header-bar { display: flex; align-items: center; justify-content: space-between; margin: -8px 0 6px; }
-  .toast { position: fixed; left: 50%; top: calc(14px + env(safe-area-inset-top)); transform: translate(-50%, -20px); background: #fff; color: #000;
-    padding: 10px 18px; border-radius: 999px; font-weight: 600; font-size: 15px; opacity: 0; transition: .25s; pointer-events: none; z-index: 9; }
-  .toast.show { opacity: 1; transform: translate(-50%, 0); }
-  .err { color: var(--red); font-size: 14px; min-height: 20px; padding: 8px 4px 0; }
   .center { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 12px; }
-  .appicon { width: 72px; height: 72px; border-radius: 18px; background: var(--card); display: grid; place-items: center; }
-  .sticky { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 20px calc(16px + env(safe-area-inset-bottom));
-    background: linear-gradient(transparent, #000 35%); z-index: 4; }
-  .sticky div { max-width: 520px; margin: 0 auto; }
-  .muted { color: var(--dim); }
-  .stay-card { background: var(--card); border-radius: 22px; padding: 18px; margin-top: 20px; display: flex; flex-direction: column; gap: 12px; }
-  .mini { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-  .mini div { background: var(--fill); border-radius: 14px; padding: 10px 12px; }
-  .mini small { display: block; font-size: 12px; color: var(--dim); }
+  .appicon { width: 72px; height: 72px; border-radius: 18px; display: grid; place-items: center; }
+  .stay-card { border-radius: 24px; padding: 18px; margin-top: 18px; display: flex; flex-direction: column; gap: 12px; }
+  .mini { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .mini div { background: rgba(255,255,255,.1); border-radius: 14px; padding: 10px 12px; min-width: 0; }
+  .mini small { display: block; font-size: 12px; color: var(--ink-3); }
   .mini b { font-size: 18px; }
-  .quick { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 18px; }
-  .quick button { border: 0; background: var(--card); border-radius: 18px; padding: 16px; display: flex; flex-direction: column; gap: 10px;
-    color: #fff; font-size: 16px; font-weight: 600; text-align: left; min-height: 96px; }
+  .rule-x { width: 22px; height: 22px; border-radius: 50%; background: var(--red); color: #fff; font-weight: 700; line-height: 1; flex: 0 0 auto; }
+  .move { color: var(--ink-3); padding: 4px; min-width: 32px; min-height: 32px; }
+  .answer { font-size: 16px; line-height: 1.45; white-space: pre-wrap; padding: 4px 2px; }
+  .toast { position: fixed; left: 50%; top: calc(var(--sat) + 14px); transform: translate(-50%, -20px); background: #fff; color: #000; z-index: 9;
+    padding: 10px 18px; border-radius: 999px; font-weight: 600; font-size: 15px; opacity: 0; transition: .25s var(--ease); pointer-events: none; }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  @media (prefers-reduced-motion: reduce) { .card, .bd-layer, .seg button, nav.dock button { transition: none; } }
 </style>
 </head>
 <body>
+<div class="backdrop" aria-hidden="true"><div class="bd-layer" id="bd1"></div><div class="bd-layer" id="bd2"></div><div class="bd-shade"></div></div>
 <div class="toast" id="toast" role="status"></div>
 <main id="app"><p class="muted">Loading…</p></main>
-<nav class="tabs" id="tabs" hidden></nav>
-<div class="sticky" id="sticky" hidden><div></div></div>
+<div class="actions" id="actions" hidden><div></div></div>
+<nav class="dock glass" id="dock" hidden aria-label="Pages"></nav>
 <script>
 const $ = s => document.querySelector(s);
 const app = $('#app');
 let session = localStorage.getItem('tvhome-session') || '';
-let state = {}, host = null, apps = [], tab = '';
+let state = {}, host = null, apps = [], page = '', hostTab = 'today', nowTimer = 0;
 const ICON = {
   home: '<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
   remote: '<rect x="7" y="2" width="10" height="20" rx="5"/><circle cx="12" cy="8" r="2"/>',
+  watch: '<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/>',
   guide: '<path d="M4 4h11a3 3 0 0 1 3 3v13H7a3 3 0 0 1-3-3z"/><path d="M8 9h6M8 13h6"/>',
-  today: '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/>',
-  stay: '<circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20a6 6 0 0 1 12 0M14 20a4 4 0 0 1 7-2.6"/>',
-  settings: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/>',
+  host: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
   lock: '<rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
   wifi: '<path d="M2 8.5a15 15 0 0 1 20 0"/><path d="M5 12a10 10 0 0 1 14 0"/><path d="M8.5 15.5a5 5 0 0 1 7 0"/><circle cx="12" cy="19" r="1"/>',
-  back: '<path d="M15 6l-6 6 6 6"/>', tv: '<rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8"/>',
+  back: '<path d="M15 6l-6 6 6 6"/>', tv: '<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
   plus: '<path d="M12 5v14M5 12h14"/>', search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>',
-  up: '<path d="M6 15l6-6 6 6"/>', down: '<path d="M6 9l6 6 6-6"/>', left: '<path d="M15 6l-6 6 6 6"/>', right: '<path d="M9 6l6 6-6 6"/>',
+  chev: '<path d="M6 15l6-6 6 6"/>', x: '<path d="M6 6l12 12M18 6L6 18"/>', heart: '<path d="M12 21s-7-4.4-9.5-9A5.5 5.5 0 0 1 12 6a5.5 5.5 0 0 1 9.5 6C19 16.6 12 21 12 21z"/>',
+  undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/>', play: '<path d="M7 4l13 8-13 8z"/>',
+  prev: '<path d="M18 6L8 12l10 6z"/><path d="M6 6v12"/>', next: '<path d="M6 6l10 6-10 6z"/><path d="M18 6v12"/>',
+  r10: '<path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v4h4"/>', f10: '<path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v4h-4"/>',
+  mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
 };
-const svg = (name, size = 24, color = 'currentColor', w = 1.8) =>
-  `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[name]}</svg>`;
+const svg = (n, size = 22, w = 1.9, fill = 'none') => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="${fill}" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[n]}</svg>`;
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function toast(t) { const e = $('#toast'); e.textContent = t; e.classList.add('show'); clearTimeout(e._t); e._t = setTimeout(() => e.classList.remove('show'), 1800); }
-// A light tap under the finger. iPhone Safari has no vibrate API; since iOS 18, toggling a hidden switch through its
-// label plays the system tick (the trick is from couch-tv's haptics.js, MIT). Only works inside a touch or click.
+// A tick under the finger. iPhone Safari has no vibrate API; since iOS 18 toggling a hidden switch through its label
+// plays the system tick (couch-tv's haptics.js trick). Only inside a touch or click.
 let hapticLabel;
 function tick() {
   if (navigator.vibrate) { navigator.vibrate(8); return; }
@@ -171,122 +251,151 @@ async function api(path, body) {
   if (!r.ok) throw new Error(j.error || 'Something went wrong.');
   return j;
 }
-function tabs(list) {
-  const nav = $('#tabs');
-  if (!list) { nav.hidden = true; return; }
-  nav.hidden = false;
-  nav.style.gridTemplateColumns = `repeat(${list.length}, 1fr)`;
-  nav.innerHTML = list.map(([id, label, icon]) => `<button class="${id === tab ? 'on' : ''}" data-tab="${id}" aria-current="${id === tab ? 'page' : 'false'}">${svg(icon)}${label}</button>`).join('');
-  nav.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => go(b.dataset.tab));
+let bdTop = 1, bdUrl = '';
+function backdrop(url) {
+  if (!url || url === bdUrl) return;
+  const img = new Image();
+  img.onload = () => { bdUrl = url; const next = $('#bd' + (bdTop === 1 ? 2 : 1)), cur = $('#bd' + bdTop);
+    next.style.backgroundImage = `url("${url}")`; next.classList.add('on'); cur.classList.remove('on'); bdTop = bdTop === 1 ? 2 : 1; };
+  img.src = url;
 }
-function sticky(html) { const s = $('#sticky'); s.hidden = !html; s.firstElementChild.innerHTML = html || ''; }
-const GUEST_TABS = [['welcome', 'Welcome', 'home'], ['remote', 'Remote', 'remote'], ['guide', 'Guide', 'guide']];
-const HOST_TABS = [['today', 'Today', 'today'], ['stay', 'Stay', 'stay'], ['place', 'Place', 'home'], ['settings', 'Settings', 'settings']];
+function actions(html) { const a = $('#actions'); a.hidden = !html; a.firstElementChild.innerHTML = html || ''; app.classList.toggle('has-actions', !!html); }
+function dock(list) {
+  const d = $('#dock');
+  if (!list) { d.hidden = true; return; }
+  d.hidden = false; d.classList.toggle('many', list.length > 3);
+  d.innerHTML = list.map(([id, label, icon]) => `<button class="${id === page ? 'on' : ''}" data-page="${id}" aria-current="${id === page ? 'page' : 'false'}">${svg(icon, 20)}<span>${label}</span></button>`).join('');
+  d.querySelectorAll('[data-page]').forEach(b => b.onclick = () => { tick(); go(b.dataset.page); });
+}
+const GUEST = [['home', 'Home', 'home'], ['remote', 'Remote', 'remote'], ['watch', 'Watch', 'watch'], ['guide', 'Guide', 'guide']];
+const HOST = [['remote', 'Remote', 'remote'], ['watch', 'Watch', 'watch'], ['host', 'Host', 'host']];
 
 async function load() {
+  backdrop('/api/backdrop');
   try { state = await api('/api/state'); }
   catch (e) {
-    tabs(null); sticky(null);
-    app.innerHTML = `<div class="center" style="margin-top:80px"><div class="appicon">${svg('wifi', 36, 'var(--blue)', 1.6)}</div>
+    dock(null); actions(null);
+    app.className = '';
+    app.innerHTML = `<div class="center" style="margin-top:80px"><div class="appicon glass">${svg('wifi', 34)}</div>
       <h1>Can’t reach the TV</h1><p class="sub">This page only works on the same Wi-Fi as the TV. Turn off mobile data, join the Wi-Fi shown on the TV, then reload.</p>
-      <button class="btn blue" onclick="location.reload()" style="margin-top:12px">Try again</button></div>`;
+      <button class="btn solid" onclick="location.reload()" style="margin-top:12px">Try again</button></div>`;
     return;
   }
   if (!state.claimed) return claimView();
-  if (state.host) { if (!HOST_TABS.some(t => t[0] === tab) && tab !== 'remote') tab = 'today'; return hostView(); }
-  if (!GUEST_TABS.some(t => t[0] === tab)) tab = 'welcome';
-  guestView();
+  const pages = state.host ? HOST : GUEST;
+  if (!pages.some(p => p[0] === page)) page = state.host ? 'remote' : 'home';
+  render();
 }
-function go(t) { tab = t; window.scrollTo(0, 0); state.host ? hostView() : guestView(); }
+function go(p) { page = p; window.scrollTo(0, 0); render(); }
+function render() {
+  clearInterval(nowTimer); actions(null); app.className = '';
+  dock(state.host ? HOST : GUEST);
+  if (page === 'remote') return remoteView();
+  if (page === 'watch') return watchView();
+  if (page === 'guide') return guideView();
+  if (page === 'host') return hostView();
+  homeView();
+}
 
-// ---- claim -----------------------------------------------------------------------------------------------
+// ---- claim and sign-in ---------------------------------------------------------------------------------
 function claimView() {
-  tabs(null);
+  dock(null);
   const code = ((location.hash.match(/claim=(\d{6})/) || [])[1] || '').split('');
+  app.className = 'has-actions';
   app.innerHTML = `
-    <div class="center" style="margin-top:28px"><div class="appicon">${svg('tv', 40, 'var(--blue)', 1.6)}</div>
-      <h1 style="font-size:30px">Set up this TV</h1>
-      <p class="sub" style="max-width:300px">You’ll be the host. Guests never see this page or your settings.</p></div>
+    <div class="center" style="margin-top:24px"><div class="appicon glass">${svg('tv', 38, 1.6)}</div>
+      <h1>Set up this TV</h1><p class="sub" style="max-width:300px">You’ll be the host. Guests never see this page or your settings.</p></div>
     <div class="section"><label class="eyebrow" for="c0">Code shown on the TV</label>
       <div class="code">${[0,1,2,3,4,5].map(i => `<input id="c${i}" inputmode="numeric" maxlength="1" aria-label="Digit ${i + 1}" value="${esc(code[i] || '')}">`).join('')}</div>
       ${code.length === 6 ? `<div class="note" style="color:var(--green)">Filled in from the QR code</div>` : ''}</div>
-    <div class="section"><span class="eyebrow">Choose a host PIN</span><div class="list">
+    <div class="section"><span class="eyebrow">Choose a host PIN</span><div class="list glass">
       <label class="row"><span>PIN</span><input id="pin" type="password" inputmode="numeric" maxlength="8" placeholder="4 to 8 digits"></label>
       <label class="row"><span>Confirm</span><input id="pin2" type="password" inputmode="numeric" maxlength="8" placeholder="Same PIN again"></label></div>
-      <div class="note">You’ll use it to sign in here and to leave Guest mode on the TV.</div></div>
+      <div class="note">You’ll use it to sign in here and to leave Guest or Kids mode on the TV.</div></div>
     <p class="err" id="err"></p>`;
+  $('#actions').style.bottom = 'calc(var(--sab) + 20px)';
+  actions(`<button class="btn solid" id="go">Become the host</button>`);
   const boxes = [...document.querySelectorAll('.code input')];
   boxes.forEach((b, i) => {
     b.oninput = () => { b.value = b.value.replace(/\D/g, '').slice(-1); if (b.value && boxes[i + 1]) boxes[i + 1].focus(); };
     b.onkeydown = e => { if (e.key === 'Backspace' && !b.value && boxes[i - 1]) boxes[i - 1].focus(); };
     b.onpaste = e => { const d = (e.clipboardData.getData('text').match(/\d/g) || []).slice(0, 6); if (d.length) { e.preventDefault(); d.forEach((x, k) => boxes[k] && (boxes[k].value = x)); } };
   });
-  sticky(`<button class="btn blue" id="go">Become the host</button>`);
   $('#go').onclick = async () => {
     const pin = $('#pin').value.trim();
     if (pin !== $('#pin2').value.trim()) return $('#err').textContent = 'The two PINs don’t match.';
     try {
       const r = await api('/api/claim', { code: boxes.map(b => b.value).join(''), pin });
       session = r.session; localStorage.setItem('tvhome-session', session);
-      history.replaceState(null, '', '/'); toast('You’re the host'); sticky(null); tab = 'today'; load();
+      history.replaceState(null, '', '/'); toast('You’re the host'); $('#actions').style.bottom = ''; page = 'host'; load();
     } catch (e) { $('#err').textContent = e.message; }
   };
 }
+function signIn() {
+  dock(null);
+  app.className = 'has-actions';
+  app.innerHTML = `<div class="center" style="margin-top:40px"><div class="appicon glass">${svg('lock', 34, 1.6)}</div>
+    <h1>Host sign-in</h1><p class="sub">Enter your host PIN.</p></div>
+    <div class="section"><div class="list glass"><label class="row"><span>PIN</span><input id="pin" type="password" inputmode="numeric" maxlength="8" placeholder="Your PIN" autofocus></label></div></div>
+    <p class="err" id="err"></p><p style="text-align:center;margin-top:8px"><button class="link" id="cancel">Cancel</button></p>`;
+  $('#actions').style.bottom = 'calc(var(--sab) + 20px)';
+  actions(`<button class="btn solid" id="go">Sign in</button>`);
+  $('#go').onclick = async () => {
+    try { const r = await api('/api/login', { pin: $('#pin').value.trim() }); session = r.session; localStorage.setItem('tvhome-session', session);
+      $('#actions').style.bottom = ''; page = 'host'; load(); }
+    catch (e) { $('#err').textContent = e.message; }
+  };
+  $('#cancel').onclick = () => { $('#actions').style.bottom = ''; load(); };
+}
 
-// ---- guest -----------------------------------------------------------------------------------------------
-function guestView() {
-  tabs(GUEST_TABS); sticky(null);
-  if (tab === 'remote') return remoteView();
-  if (tab === 'guide') return guideView();
+// ---- guest pages ---------------------------------------------------------------------------------------
+function homeView() {
   const s = state, w = s.weather || {};
   const hello = s.staying && s.names ? `Welcome, ${esc(s.names)}` : (s.place ? `Welcome to ${esc(s.place)}` : 'Welcome');
   const line = s.staying ? (s.arriving ? `Check-in from ${esc(s.checkin)}. Make yourselves at home.`
     : s.leaving ? `Check-out today by ${esc(s.checkout)}. Safe travels.`
     : `Night ${s.night} of ${s.nights} · check-out ${esc(s.checkout_day)} ${esc(s.checkout)}`) : esc(s.about);
   const tiles = [];
-  if (s.door_code) tiles.push(`<div class="tile">${svg('lock', 26, 'var(--blue)')}<span class="label">Door code</span><span class="big" style="letter-spacing:.08em">${esc(s.door_code)}</span></div>`);
-  if (w.temp !== undefined) tiles.push(`<div class="tile">${svg('sun', 26, 'var(--orange)')}<span class="label">${esc(w.text || 'Weather')}</span><span class="big">${w.temp}°</span></div>`);
+  if (s.door_code) tiles.push(`<div class="tile glass">${svg('lock', 24)}<span class="label">Door code</span><span class="big" style="letter-spacing:.08em">${esc(s.door_code)}</span></div>`);
+  if (w.temp !== undefined) tiles.push(`<div class="tile glass">${svg('sun', 24)}<span class="label">${esc(w.text || 'Weather')}</span><span class="big">${w.temp}°</span></div>`);
   app.innerHTML = `
     ${s.place ? `<span class="eyebrow">${esc(s.place)}</span>` : ''}
     <h1>${hello}</h1><p class="sub">${line}</p>
-    ${tiles.length ? `<div class="tiles" style="${tiles.length === 1 ? 'grid-template-columns:1fr' : ''}">${tiles.join('')}</div>` : ''}
-    ${s.wifi_name ? `<div class="section"><div class="list">
-      <div class="row" style="justify-content:flex-start">${svg('wifi', 22, 'var(--blue)')}<div class="two-line"><small>Wi-Fi</small><b>${esc(s.wifi_name)}</b></div></div>
+    ${tiles.length ? `<div class="tiles">${tiles.join('')}</div>` : ''}
+    ${s.wifi_name ? `<div class="section"><div class="list glass">
+      <div class="row" style="justify-content:flex-start">${svg('wifi', 22)}<div class="two-line"><small>Wi-Fi</small><b>${esc(s.wifi_name)}</b></div></div>
       ${s.wifi_password ? `<div class="row"><div class="two-line" style="padding-left:34px"><small>Password</small><b>${esc(s.wifi_password)}</b></div><button class="pill" id="copy">Copy</button></div>` : ''}
     </div></div>` : ''}
-    <div class="section"><div class="list">
+    <div class="section"><div class="list glass">
       <div class="row"><span class="k">Check-in</span><span class="v">from ${esc(s.checkin)}</span></div>
       <div class="row"><span class="k">Check-out</span><span class="v">by ${esc(s.checkout)}${s.checkout_day ? ', ' + esc(s.checkout_day) : ''}</span></div>
     </div></div>
-    ${s.remote ? `<div class="section"><button class="btn white" id="toRemote">${svg('remote', 20, '#000', 2)}Open the TV remote</button></div>` : ''}
-    <p style="text-align:center;margin-top:28px"><button class="link" id="hostin">Host sign-in</button></p>`;
+    <p style="text-align:center;margin-top:26px"><button class="link" id="hostin">Host sign-in</button></p>`;
   if ($('#copy')) $('#copy').onclick = () => copy(s.wifi_password);
-  if ($('#toRemote')) $('#toRemote').onclick = () => go('remote');
   $('#hostin').onclick = signIn;
 }
 function copy(text) {
   (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(() => toast('Copied'))
     .catch(() => { const t = document.createElement('textarea'); t.value = text; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); toast('Copied'); });
 }
-
 function guideView() {
   const s = state;
   app.innerHTML = `<h1>House guide</h1>
-    ${s.rules.length ? `<div class="section"><span class="eyebrow">House rules</span><div class="list">
-      ${s.rules.map(r => `<div class="row" style="justify-content:flex-start;gap:12px">${svg('right', 18, 'var(--blue)', 2.2)}<span>${esc(r)}</span></div>`).join('')}</div></div>` : ''}
-    <div class="section"><span class="eyebrow">Your stay</span><div class="list">
+    ${s.rules.length ? `<div class="section"><span class="eyebrow">House rules</span><div class="list glass">
+      ${s.rules.map(r => `<div class="row" style="justify-content:flex-start;gap:12px"><span style="color:#64b5ff">•</span><span>${esc(r)}</span></div>`).join('')}</div></div>` : ''}
+    <div class="section"><span class="eyebrow">Your stay</span><div class="list glass">
       <div class="row"><span class="k">Check-in</span><span class="v">from ${esc(s.checkin)}</span></div>
       <div class="row"><span class="k">Check-out</span><span class="v">by ${esc(s.checkout)}${s.checkout_day ? ', ' + esc(s.checkout_day) : ''}</span></div>
       ${s.staying ? `<div class="row"><span class="k">Nights</span><span class="v">${s.nights}</span></div>` : ''}
     </div></div>
-    ${s.ai ? `<div class="section"><span class="eyebrow">Ask about the area</span><div class="ask">
-      <form class="field" id="askf">${svg('search', 18, 'var(--dim)', 2)}<input id="q" placeholder="Where’s good for dinner?" aria-label="Ask about the area" enterkeyhint="send"></form>
-      <div class="chips"><button data-q="Where's good for dinner tonight?">Dinner nearby</button><button data-q="Where can I get good coffee nearby?">Coffee nearby</button><button data-q="Something fun to do around here today?">Things to do</button></div>
-      <div class="answer" id="answer" hidden></div></div></div>` : ''}`;
+    ${s.ai ? `<div class="section"><span class="eyebrow">Ask about the area</span>
+      <form class="field glass" id="askf">${svg('search', 18)}<input id="q" placeholder="Where’s good for dinner?" aria-label="Ask about the area" enterkeyhint="send"></form>
+      <div class="chips" style="margin-top:10px"><button data-q="Where's good for dinner tonight?">Dinner nearby</button><button data-q="Where can I get good coffee nearby?">Coffee</button><button data-q="Something fun to do around here today?">Things to do</button></div>
+      <div class="list glass" id="answerbox" style="margin-top:12px;padding:12px 16px" hidden><div class="answer" id="answer"></div></div></div>` : ''}`;
   if (!s.ai) return;
   const ask = async q => {
     if (!q.trim()) return;
-    const a = $('#answer'); a.hidden = false; a.className = 'answer muted'; a.textContent = 'Thinking…';
+    $('#answerbox').hidden = false; const a = $('#answer'); a.className = 'answer muted'; a.textContent = 'Thinking…';
     try { const r = await api('/api/ask', { q }); a.className = 'answer'; a.textContent = r.answer || r.error; }
     catch (e) { a.className = 'answer muted'; a.textContent = e.message; }
   };
@@ -294,111 +403,274 @@ function guideView() {
   document.querySelectorAll('[data-q]').forEach(b => b.onclick = () => { $('#q').value = b.dataset.q; ask(b.dataset.q); });
 }
 
-// ---- remote (guest and host) -----------------------------------------------------------------------------
+// ---- remote: one-handed, everything in the lower half --------------------------------------------------
+function fmt(ms) { const s = Math.max(0, Math.round(ms / 1000)), m = Math.floor(s / 60); return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}:${String(s % 60).padStart(2, '0')}`; }
 function remoteView() {
   const s = state;
-  if (s.host) tabs(HOST_TABS);
   if (!s.remote) { app.innerHTML = `<h1>Remote</h1><p class="sub">The host has turned the phone remote off.</p>`; return; }
+  app.className = 'fit';
   app.innerHTML = `
-    <div class="header-bar">${s.host ? `<button class="link" id="back" style="font-size:17px">${svg('back', 20, 'var(--blue)', 2.4)}</button>` : '<span></span>'}
-      <span class="status ${s.keys ? '' : 'off'}"><i></i>${s.keys ? 'Connected' : 'Buttons off'}</span></div>
-    <div class="two-line"><small>Controlling</small><b style="font-size:20px">${esc(s.place || 'This TV')}</b></div>
-    ${s.keys ? `<div class="pad" id="pad" aria-label="Touch surface: swipe to move, tap to select">
-        <span class="chev" style="top:18px">${svg('up', 16, 'currentColor', 2.4)}</span><span class="chev" style="bottom:18px">${svg('down', 16, 'currentColor', 2.4)}</span>
-        <span class="chev" style="left:18px">${svg('left', 16, 'currentColor', 2.4)}</span><span class="chev" style="right:18px">${svg('right', 16, 'currentColor', 2.4)}</span>
-        <button class="ok" data-k="ok" aria-label="Select">OK</button><span class="hint">Swipe to move · tap to select</span></div>
-      <div class="keys"><button class="key" data-k="back" aria-label="Back">${svg('back', 24, '#fff', 2)}</button>
-        <button class="key" data-k="home" aria-label="Home">${svg('tv')}</button>
-        <button class="key" data-k="playpause" aria-label="Play or pause"><svg width="24" height="24" viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M4 5l8 7-8 7z"/><rect x="14" y="5" width="2.4" height="14" rx="1"/><rect x="18" y="5" width="2.4" height="14" rx="1"/></svg></button></div>
-      <div class="vol"><button class="key" data-k="voldown" aria-label="Volume down">−</button>
-        <div class="mid">Volume<button class="link" data-k="mute">Mute</button></div>
-        <button class="key" data-k="volup" aria-label="Volume up">+</button></div>`
-      : `<p class="note">The arrows need debugging switched on in the TV’s setup. Apps still open from here.</p>`}
-    ${s.apps.length ? `<div class="section"><span class="eyebrow">Open on the TV</span><div class="apps">
-      ${s.apps.map(a => `<button class="app" data-app="${esc(a.pkg)}"><img class="icon" src="/api/icon?pkg=${encodeURIComponent(a.pkg)}" alt=""><span>${esc(a.label)}</span></button>`).join('')}</div></div>` : ''}
-    <div class="section"><span class="eyebrow">Put on a show</span><div class="ask">
-      <form class="field" id="watchf">${svg('search', 18, 'var(--dim)', 2)}<input id="wq" placeholder="Bluey, Stranger Things…" aria-label="Name of a show or film" enterkeyhint="search"></form>
-      <div id="wres"></div></div></div>`;
-  if ($('#back')) $('#back').onclick = () => go('today');
+    <div style="display:flex;justify-content:space-between;align-items:center;flex:0 0 auto">
+      <div class="two-line"><small>Controlling</small><b style="font-size:18px">${esc(s.place || 'This TV')}</b></div>
+      <span class="status glass ${s.keys ? '' : 'off'}"><i></i>${s.keys ? 'Connected' : 'Buttons off'}</span></div>
+    <div style="flex:1 1 0"></div>
+    <div class="now glass" id="now" hidden></div>
+    ${s.keys ? `
+    <div class="pad glass" id="pad" role="application" aria-label="Touch surface: swipe to move, tap to select">
+      <span class="chev up">${svg('chev', 24, 2.2)}</span><span class="chev down" style="transform:rotate(180deg)">${svg('chev', 24, 2.2)}</span>
+      <span class="chev left" style="transform:rotate(-90deg)">${svg('chev', 24, 2.2)}</span><span class="chev right" style="transform:rotate(90deg)">${svg('chev', 24, 2.2)}</span>
+      <span class="ring" id="ring"></span><span class="hint">Swipe to move · tap to select</span></div>
+    <div class="row-ctl">
+      <button class="round glass" data-k="back" aria-label="Back">${svg('back', 24, 2.2)}</button>
+      <button class="round glass" data-k="home" aria-label="Home">${svg('tv', 22)}</button>
+      <button class="round glass" data-k="playpause" aria-label="Play or pause"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5l8 7-8 7z"/><rect x="14" y="5" width="2.6" height="14" rx="1"/><rect x="18.5" y="5" width="2.6" height="14" rx="1"/></svg></button>
+      <div class="volume glass"><button data-k="voldown" aria-label="Volume down">−</button><button data-k="mute" aria-label="Mute" style="font-size:13px;width:auto;padding:0 8px;border-radius:999px">Mute</button><button data-k="volup" aria-label="Volume up">+</button></div>
+    </div>` : `<p class="note" style="flex:0 0 auto">The arrows need debugging switched on in the TV’s setup. Apps and shows still open from Watch.</p>`}
+    <button class="btn solid ask-btn" id="askshow">${svg('search', 20, 2.2)}Find a show</button>`;
   const send = k => { tick(); api('/api/remote', { key: k }).catch(e => toast(e.message)); };
-  watchBox();
-  document.querySelectorAll('[data-k]').forEach(b => b.onclick = e => { e.stopPropagation(); send(b.dataset.k); });
-  document.querySelectorAll('[data-app]').forEach(b => b.onclick = () => api('/api/remote', { app: b.dataset.app }).then(() => toast('Opening…')).catch(e => toast(e.message)));
+  document.querySelectorAll('[data-k]').forEach(b => b.onclick = () => send(b.dataset.k));
+  $('#askshow').onclick = () => { go('watch'); setTimeout(() => $('#wq') && $('#wq').focus(), 50); };
   const pad = $('#pad');
   if (pad) {
-    // Like a trackpad: every STEP points the finger travels is one move, so a long swipe crosses several tiles and
-    // changing direction mid-swipe works. A touch that never travels is a tap: select.
-    const STEP = 44;
+    // Like a trackpad: every STEP points the finger travels is one move; a touch that never travels selects.
+    const STEP = 44, ring = $('#ring');
     let x0, y0, moved;
-    const flash = () => { pad.classList.add('flash'); setTimeout(() => pad.classList.remove('flash'), 120); };
-    pad.addEventListener('pointerdown', e => { if (e.target.closest('.ok')) return; x0 = e.clientX; y0 = e.clientY; moved = false; pad.setPointerCapture(e.pointerId); });
+    const lit = cls => { const c = cls ? pad.querySelector('.chev.' + cls) : ring; c.classList.add('lit'); setTimeout(() => c.classList.remove('lit'), 140); };
+    pad.addEventListener('pointerdown', e => { x0 = e.clientX; y0 = e.clientY; moved = false; pad.setPointerCapture(e.pointerId); });
     pad.addEventListener('pointermove', e => {
       if (x0 === undefined) return;
       const dx = e.clientX - x0, dy = e.clientY - y0;
       if (Math.max(Math.abs(dx), Math.abs(dy)) < STEP) return;
-      moved = true; x0 = e.clientX; y0 = e.clientY; flash();
-      send(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'));
+      moved = true; x0 = e.clientX; y0 = e.clientY;
+      const d = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
+      lit(d); send(d);
     });
-    const end = e => { if (x0 === undefined) return; x0 = undefined; if (!moved && e.type === 'pointerup') { flash(); send('ok'); } };
-    pad.addEventListener('pointerup', end);
-    pad.addEventListener('pointercancel', end);
+    const end = e => { if (x0 === undefined) return; x0 = undefined; if (!moved && e.type === 'pointerup') { lit(); send('ok'); } };
+    pad.addEventListener('pointerup', end); pad.addEventListener('pointercancel', end);
   }
+  const showNow = async () => {
+    let n; try { n = await api('/api/now'); } catch (e) { return; }
+    const box = $('#now'); if (!box) return;
+    if (!n.title) { box.hidden = true; return; }
+    box.hidden = false;
+    const pct = n.duration ? Math.min(100, n.position / n.duration * 100) : 0;
+    box.innerHTML = `<div class="now-head">${n.art ? `<img class="now-art" src="/api/now/art?t=${encodeURIComponent(n.title)}" alt="">` : ''}
+        <div style="min-width:0;flex:1 1 auto"><div class="now-title">${esc(n.title)}</div><div class="now-sub">${esc([n.sub, n.app].filter(Boolean).join(' · '))}</div></div></div>
+      ${n.duration ? `<div class="bar"><i style="width:${pct}%"></i></div><div class="times"><span>${fmt(n.position)}</span><span>${n.app ? esc(n.app) : ''}</span><span>-${fmt(n.duration - n.position)}</span></div>` : ''}
+      <div class="row-ctl" style="justify-content:space-around">
+        <button class="round glass" data-n="previous" aria-label="Previous">${svg('prev', 20)}</button>
+        <button class="round glass" data-n="back10" aria-label="Back ten seconds">${svg('r10', 20)}</button>
+        <button class="round glass" data-n="fwd10" aria-label="Forward ten seconds">${svg('f10', 20)}</button>
+        <button class="round glass" data-n="next" aria-label="Next">${svg('next', 20)}</button></div>`;
+    box.querySelectorAll('[data-n]').forEach(b => b.onclick = () => { tick(); api('/api/remote', { key: b.dataset.n }).then(showNow).catch(e => toast(e.message)); });
+    if (n.art) backdrop('/api/now/art?t=' + encodeURIComponent(n.title));
+  };
+  showNow(); nowTimer = setInterval(showNow, 5000);
 }
 
-// "Put on a show": search by name, then open it in an app on the TV (the TV finds where it streams).
-function watchBox() {
-  if (!$('#watchf')) return;
-  let results = [];
-  const kindWord = { free: 'Free on', subscription: 'Play on', rent: 'Rent on', buy: 'Buy on', other: 'Open in' };
-  const find = async q => {
-    if (!q.trim()) return;
-    const box = $('#wres'); box.innerHTML = '<div class="answer muted">Searching…</div>';
+// ---- watch: search, swipe to find something, the apps ---------------------------------------------------
+const KIND = { free: 'Free on', subscription: 'Play on', rent: 'Rent on', buy: 'Buy on', other: 'Open in', search: '' };
+function watchView() {
+  const s = state, picks = loadPicks();
+  app.innerHTML = `<h1>Watch</h1>
+    <form class="field glass" id="watchf" style="margin-top:10px">${svg('search', 18, 2.2)}<input id="wq" placeholder="Search shows and films" aria-label="Search shows and films" enterkeyhint="search"></form>
+    <div class="results" id="wres"></div>
+    <div class="section"><div style="display:flex;justify-content:space-between;align-items:baseline;padding:0 4px">
+      <span class="eyebrow">Swipe to find something</span><span class="muted" style="font-size:13px" id="deckhint">Right to like · left to skip</span></div>
+      <div class="deck" id="deck"><div class="deck-msg glass">Finding shows on this TV’s apps…</div></div>
+      <div class="deck-ctl">
+        <button class="round glass" id="dno" aria-label="Skip">${svg('x', 26, 2.4)}</button>
+        <button class="round glass" id="dundo" aria-label="Undo">${svg('undo', 22)}</button>
+        <button class="round glass big" id="dplay" aria-label="Play now" style="background:#fff;color:#000">${svg('play', 26, 2, 'currentColor')}</button>
+        <button class="round glass" id="dyes" aria-label="Like" style="color:#ff6b8a">${svg('heart', 26, 2.2)}</button></div></div>
+    <div class="section" id="picksec" ${picks.length ? '' : 'hidden'}><span class="eyebrow">Your picks</span><div class="shelf" id="picks"></div></div>
+    ${s.apps.length ? `<div class="section"><span class="eyebrow">Apps</span><div class="apps">
+      ${s.apps.map(a => `<button class="app" data-app="${esc(a.pkg)}"><img src="/api/icon?pkg=${encodeURIComponent(a.pkg)}" alt=""><span>${esc(a.label)}</span></button>`).join('')}</div></div>` : ''}`;
+  document.querySelectorAll('[data-app]').forEach(b => b.onclick = () => { tick(); api('/api/remote', { app: b.dataset.app }).then(() => toast('Opening on the TV…')).catch(e => toast(e.message)); });
+  $('#watchf').onsubmit = e => { e.preventDefault(); search($('#wq').value); $('#wq').blur(); };
+  showPicks();
+  deck.start();
+}
+async function search(q) {
+  if (!q.trim()) return;
+  const box = $('#wres'); box.innerHTML = '<div class="muted" style="padding:6px 4px">Searching…</div>';
+  try {
+    const r = await api('/api/watch/search', { q });
+    if (r.error) { box.innerHTML = `<div class="muted">${esc(r.error)}</div>`; return; }
+    box.innerHTML = r.results.length ? r.results.map((t, i) => {
+      const play = t.where.filter(w => w.id), elsewhere = t.where.filter(w => !w.id).map(w => w.name);
+      return `<div class="title glass">${t.poster ? `<img class="poster" src="${esc(t.poster)}" alt="">` : '<span class="poster"></span>'}
+        <div class="tinfo"><b>${esc(t.title)}</b><small>${esc(t.type)}${t.year ? ' · ' + t.year : ''}</small>
+        <div class="chips">${play.map(w => `<button data-play="${esc(w.id)}">${w.kind === 'search' ? esc(w.name) : KIND[w.kind] + ' ' + esc(w.name)}</button>`).join('')}
+          ${state.host && play.length ? `<button data-kid="${i}">Add to Kids</button>` : ''}</div>
+        ${elsewhere.length ? `<small>Also on ${esc(elsewhere.slice(0, 3).join(', '))} (not on this TV)</small>` : ''}</div></div>`;
+    }).join('') : '<div class="muted" style="padding:6px 4px">Nothing found. Try the exact title.</div>';
+    box.querySelectorAll('[data-play]').forEach(b => b.onclick = () => playId(b.dataset.play));
+    box.querySelectorAll('[data-kid]').forEach(b => b.onclick = async () => {
+      const t = r.results[+b.dataset.kid], w = t.where.find(x => x.id && x.kind !== 'search') || t.where.find(x => x.id);
+      try { const x = await api('/api/kids/add', { id: w.id, title: t.title, poster: t.poster }); toast(x.error || 'Added to Kids'); if (!x.error) b.classList.add('on'); }
+      catch (e) { toast(e.message); }
+    });
+  } catch (e) { box.innerHTML = `<div class="muted">${esc(e.message)}</div>`; }
+}
+function playId(id) { tick(); return api('/api/watch/play', { id }).then(x => { toast(x.error || x.note || 'Opening on the TV…'); return !x.error; }).catch(e => { toast(e.message); return false; }); }
+
+// Picks you liked, kept on this phone. Links expire when the TV restarts, so a pick plays by searching its title again.
+function loadPicks() { try { return JSON.parse(localStorage.getItem('tvhome-picks') || '[]'); } catch (e) { return []; } }
+function savePicks(p) { try { localStorage.setItem('tvhome-picks', JSON.stringify(p.slice(0, 30))); } catch (e) {} }
+function showPicks() {
+  const p = loadPicks(), box = $('#picks'); if (!box) return;
+  $('#picksec').hidden = !p.length;
+  box.innerHTML = p.map((t, i) => `<button class="pick" data-pick="${i}"><img src="${esc(t.poster)}" alt=""><b>${esc(t.title)}</b><small>${esc(t.app || '')}</small></button>`).join('');
+  box.querySelectorAll('[data-pick]').forEach(b => b.onclick = () => playTitle(loadPicks()[+b.dataset.pick]));
+}
+async function playTitle(t) {
+  if (t.id && await playId(t.id)) return;
+  try { const r = await api('/api/watch/search', { q: t.title });
+    const hit = (r.results || []).find(x => x.title === t.title) || (r.results || [])[0];
+    const w = hit && (hit.where.find(x => x.id && x.kind !== 'search') || hit.where.find(x => x.id));
+    if (w) playId(w.id); else toast('Not on this TV’s apps right now');
+  } catch (e) { toast(e.message); }
+}
+
+// ---- the swipe deck --------------------------------------------------------------------------------------
+// Learning what you like: the first cards come from random genres. Each like adds to that title's genres, each skip
+// takes a little away. Once a few likes are in, about half the cards come from the genres you like (weighted by
+// how much), and half from any genre, so the deck keeps showing new kinds of things.
+const deck = {
+  queue: [], top: null, history: [], loading: false, genres: [],
+  profile() { try { return JSON.parse(localStorage.getItem('tvhome-taste') || '{}'); } catch (e) { return {}; } },
+  store(p) { try { localStorage.setItem('tvhome-taste', JSON.stringify(p)); } catch (e) {} },
+  pickGenre() {
+    const p = this.profile(), score = p.score || {}, all = this.genres.length ? this.genres.map(g => g[0]) : ['act','ani','cmy','crm','doc','drm','fnt','hrr','fml','trl','rma','scf'];
+    const liked = Object.entries(score).filter(([, v]) => v > 0);
+    const likes = liked.reduce((a, [, v]) => a + v, 0);
+    if (likes >= 3 && Math.random() < 0.5) {
+      let r = Math.random() * likes;
+      for (const [g, v] of liked) { r -= v; if (r <= 0) return g; }
+    }
+    return all[Math.floor(Math.random() * all.length)];
+  },
+  async fill() {
+    if (this.loading) return;
+    this.loading = true;
+    const p = this.profile(); p.offsets = p.offsets || {}; p.seen = p.seen || [];
     try {
-      const r = await api('/api/watch/search', { q });
-      if (r.error) { box.innerHTML = `<div class="answer muted">${esc(r.error)}</div>`; return; }
-      results = r.results;
-      box.innerHTML = results.length ? results.map((t, i) => {
-        const play = t.where.filter(w => w.id);
-        const elsewhere = t.where.filter(w => !w.id).map(w => w.name);
-        return `<div class="title">${t.poster ? `<img class="poster" src="${esc(t.poster)}" alt="">` : '<span class="poster"></span>'}
-          <div class="tinfo"><b>${esc(t.title)}</b><small>${esc(t.type)}${t.year ? ' · ' + t.year : ''}</small>
-          <div class="chips">${play.map(w => `<button data-play="${esc(w.id)}">${w.kind === 'search' ? esc(w.name) : kindWord[w.kind] + ' ' + esc(w.name)}</button>`).join('')}
-            ${state.host && play.length ? `<button data-kid="${i}">Add to Kids</button>` : ''}</div>
-          ${elsewhere.length ? `<small>Also streams on ${esc(elsewhere.slice(0, 3).join(', '))} (not on this TV)</small>` : ''}</div></div>`;
-      }).join('') : '<div class="answer muted">Nothing found. Try the exact title.</div>';
-      box.querySelectorAll('[data-play]').forEach(b => b.onclick = () => { tick(); api('/api/watch/play', { id: b.dataset.play })
-        .then(x => toast(x.error || x.note || 'Opening on the TV…')).catch(e => toast(e.message)); });
-      box.querySelectorAll('[data-kid]').forEach(b => b.onclick = async () => {
-        const t = results[+b.dataset.kid], w = t.where.find(x => x.id && x.kind !== 'search') || t.where.find(x => x.id);
-        try { const x = await api('/api/kids/add', { id: w.id, title: t.title, poster: t.poster }); toast(x.error || 'Added to Kids'); if (!x.error) b.classList.add('on'); }
-        catch (e) { toast(e.message); }
-      });
-    } catch (e) { box.innerHTML = `<div class="answer muted">${esc(e.message)}</div>`; }
-  };
-  $('#watchf').onsubmit = e => { e.preventDefault(); find($('#wq').value); $('#wq').blur(); };
-}
-
-function signIn() {
-  tabs(null);
-  app.innerHTML = `<div class="center" style="margin-top:40px"><div class="appicon">${svg('lock', 36, 'var(--blue)', 1.6)}</div>
-    <h1 style="font-size:30px">Host sign-in</h1><p class="sub">Enter your host PIN.</p></div>
-    <div class="section"><div class="list"><label class="row"><span>PIN</span><input id="pin" type="password" inputmode="numeric" maxlength="8" placeholder="Your PIN" autofocus></label></div></div>
-    <p class="err" id="err"></p>`;
-  sticky(`<button class="btn blue" id="go">Sign in</button><p style="text-align:center;margin:8px 0 0"><button class="link" id="cancel">Cancel</button></p>`);
-  $('#go').onclick = async () => {
-    try { const r = await api('/api/login', { pin: $('#pin').value.trim() }); session = r.session; localStorage.setItem('tvhome-session', session); sticky(null); tab = 'today'; load(); }
-    catch (e) { $('#err').textContent = e.message; }
-  };
-  $('#cancel').onclick = () => { sticky(null); load(); };
-}
+      for (let tries = 0; tries < 3 && this.queue.length < 6; tries++) {
+        const g = this.pickGenre(), offset = p.offsets[g] || Math.floor(Math.random() * 3) * 12;
+        const r = await api('/api/watch/discover', { genre: g, offset });
+        if (r.genres) this.genres = r.genres;
+        p.offsets[g] = offset + 12;
+        const fresh = (r.cards || []).filter(c => !p.seen.includes(c.key) && !this.queue.some(q => q.key === c.key));
+        // Shuffle a little so one genre's batch doesn't arrive in popularity order.
+        fresh.sort(() => Math.random() - .5).slice(0, 5).forEach(c => { c.from = g; this.queue.push(c); });
+        if (r.error && !r.cards.length) { this.msg(r.error); break; }
+      }
+      this.store(p);
+    } catch (e) { if (!this.top) this.msg(e.message); }
+    this.loading = false;
+    if (!this.top) this.next();
+  },
+  msg(t) { const d = $('#deck'); if (d) d.innerHTML = `<div class="deck-msg glass">${esc(t)}</div>`; },
+  start() {
+    this.top = null;
+    const d = $('#deck'); if (!d) return;
+    $('#dno').onclick = () => this.fling(-1);
+    $('#dyes').onclick = () => this.fling(1);
+    $('#dundo').onclick = () => this.undo();
+    $('#dplay').onclick = () => { if (this.top) { const w = this.top.where[0]; if (w) playId(w.id); } };
+    if (this.queue.length) this.next(); else this.fill();
+  },
+  name(g) { const f = this.genres.find(x => x[0] === g); return f ? f[1] : g; },
+  next() {
+    const d = $('#deck'); if (!d) return;
+    this.top = this.queue.shift() || null;
+    if (this.queue.length < 4) this.fill();
+    if (!this.top) { if (!this.loading) this.msg('No more for now. Try a search.'); return; }
+    d.innerHTML = '';
+    const under = this.queue[0];
+    if (under) d.appendChild(this.cardEl(under, true));
+    d.appendChild(this.cardEl(this.top, false));
+  },
+  cardEl(c, back) {
+    const el = document.createElement('div');
+    el.className = 'card'; el.style.backgroundImage = `url("${c.poster}")`;
+    if (back) { el.style.transform = 'scale(.94) translateY(10px)'; el.style.opacity = '.7'; }
+    el.innerHTML = `<div class="shade"></div><span class="stamp like">LIKE</span><span class="stamp nope">NOPE</span>
+      <div class="meta"><div class="tags">${c.genres.slice(0, 3).map(g => `<span>${esc(this.name(g))}</span>`).join('')}</div>
+      <b>${esc(c.title)}</b><small>${esc(c.type)}${c.year ? ' · ' + c.year : ''} · ${esc(c.where.map(w => w.name).join(', '))}</small></div>`;
+    if (!back) this.drag(el);
+    return el;
+  },
+  drag(el) {
+    let x0 = null, y0 = 0, dx = 0, t0 = 0, sideways = null;
+    const like = el.querySelector('.like'), nope = el.querySelector('.nope'), under = el.previousElementSibling;
+    el.addEventListener('pointerdown', e => { x0 = e.clientX; y0 = e.clientY; dx = 0; t0 = e.timeStamp; sideways = null; });
+    el.addEventListener('pointermove', e => {
+      if (x0 === null) return;
+      const mx = e.clientX - x0, my = e.clientY - y0;
+      // Decide in the first few points: sideways drags the card, up and down scrolls the page.
+      if (sideways === null && Math.max(Math.abs(mx), Math.abs(my)) > 8) { sideways = Math.abs(mx) > Math.abs(my); if (sideways) { el.setPointerCapture(e.pointerId); el.classList.add('drag'); } }
+      if (!sideways) return;
+      dx = mx;
+      const w = el.offsetWidth, k = Math.min(1, Math.abs(dx) / (w * .4));
+      el.style.transform = `translateX(${dx}px) rotate(${dx / w * 14}deg)`;
+      (dx > 0 ? like : nope).style.opacity = k; (dx > 0 ? nope : like).style.opacity = 0;
+      if (under) { under.style.transition = 'none'; under.style.transform = `scale(${.94 + .06 * k}) translateY(${10 - 10 * k}px)`; under.style.opacity = .7 + .3 * k; }
+    });
+    const up = e => {
+      if (x0 === null) return; x0 = null;
+      if (!sideways) return;
+      el.classList.remove('drag');
+      const v = Math.abs(dx) / Math.max(1, e.timeStamp - t0);
+      if (Math.abs(dx) > el.offsetWidth * .3 || v > .6) this.fling(Math.sign(dx) || 1);
+      else { el.style.transform = ''; like.style.opacity = 0; nope.style.opacity = 0;
+        if (under) { under.style.transition = ''; under.style.transform = 'scale(.94) translateY(10px)'; under.style.opacity = '.7'; } }
+    };
+    el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+  },
+  fling(dir) {
+    const c = this.top, d = $('#deck'); if (!c || !d) return;
+    tick();
+    const el = d.lastElementChild;
+    el.classList.remove('drag');
+    el.style.transform = `translateX(${dir * window.innerWidth * 1.2}px) rotate(${dir * 24}deg)`;
+    el.style.opacity = '0';
+    const p = this.profile(); p.score = p.score || {}; p.seen = p.seen || [];
+    c.genres.forEach(g => { p.score[g] = (p.score[g] || 0) + (dir > 0 ? 1 : -.34); });
+    if (dir > 0 && c.from) p.score[c.from] = (p.score[c.from] || 0) + .5;
+    p.seen = [c.key, ...p.seen].slice(0, 600);
+    this.store(p);
+    if (dir > 0) {
+      const picks = loadPicks().filter(x => x.title !== c.title);
+      picks.unshift({ title: c.title, poster: c.poster, app: c.where[0] && c.where[0].name, id: c.where[0] && c.where[0].id });
+      savePicks(picks); showPicks();
+    }
+    this.history.push({ card: c, dir });
+    setTimeout(() => this.next(), 220);
+  },
+  undo() {
+    const h = this.history.pop(); if (!h) return;
+    tick();
+    const p = this.profile();
+    h.card.genres.forEach(g => { p.score[g] = (p.score[g] || 0) - (h.dir > 0 ? 1 : -.34); });
+    if (h.dir > 0 && h.card.from) p.score[h.card.from] -= .5;
+    p.seen = (p.seen || []).filter(k => k !== h.card.key);
+    this.store(p);
+    if (h.dir > 0) { savePicks(loadPicks().filter(x => x.title !== h.card.title)); showPicks(); }
+    if (this.top) this.queue.unshift(this.top);
+    this.queue.unshift(h.card); this.next();
+  },
+};
 
 // ---- host ------------------------------------------------------------------------------------------------
 async function hostView() {
   try { host = await api('/api/host'); if (!apps.length) apps = (await api('/api/apps')).apps; state = await api('/api/state'); }
-  catch (e) { session = ''; localStorage.removeItem('tvhome-session'); tab = ''; return load(); }
-  tabs(HOST_TABS); sticky(null);
-  if (tab === 'remote') return remoteView();
-  ({ today: todayView, stay: stayView, place: placeView, settings: settingsView })[tab]();
+  catch (e) { session = ''; localStorage.removeItem('tvhome-session'); page = ''; return load(); }
+  const head = `<div class="seg glass" role="tablist" style="margin-bottom:6px">${[['today', 'Today'], ['stay', 'Stay'], ['place', 'Place'], ['settings', 'Settings']]
+    .map(([id, l]) => `<button role="tab" data-ht="${id}" class="${hostTab === id ? 'on' : ''}" aria-selected="${hostTab === id}">${l}</button>`).join('')}</div>`;
+  ({ today: todayView, stay: stayView, place: placeView, settings: settingsView })[hostTab](head);
+  document.querySelectorAll('[data-ht]').forEach(b => b.onclick = () => { tick(); hostTab = b.dataset.ht; actions(null); hostView(); });
 }
 async function save(patch, message) {
   try { await api('/api/host', patch); toast(message || 'Saved to the TV'); host = await api('/api/host'); state = await api('/api/state'); return true; }
@@ -408,80 +680,79 @@ function toggleRow(id, title, sub, on) {
   return `<label class="row" style="min-height:62px"><span class="two-line"><span>${title}</span><small>${sub}</small></span>
     <span class="switch"><input type="checkbox" id="${id}" ${on ? 'checked' : ''} role="switch"><i></i></span></label>`;
 }
-
-function todayView() {
+function todayView(head) {
   const s = state, h = host, g = h.guest || {};
-  app.innerHTML = `
-    <div class="header-bar" style="margin:0"><span class="eyebrow">Host · ${esc(h.place || 'This TV')}</span><span class="status"><i></i>TV online</span></div>
+  app.innerHTML = head + `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px"><span class="eyebrow">Host · ${esc(h.place || 'This TV')}</span><span class="status glass"><i></i>TV online</span></div>
     <h1>Today</h1>
-    ${s.staying ? `<div class="stay-card"><div style="display:flex;justify-content:space-between;align-items:center">
+    ${s.staying ? `<div class="stay-card glass"><div style="display:flex;justify-content:space-between;align-items:center">
         <span class="eyebrow" style="color:var(--green)">Staying now</span><button class="link" id="edit">Edit</button></div>
-      <div style="font-size:24px;font-weight:700">${esc(s.names)}</div>
+      <div style="font:700 24px var(--font-d)">${esc(s.names)}</div>
       <div class="mini"><div><small>Night</small><b>${s.night} of ${s.nights}</b></div><div><small>Leaves</small><b>${esc(s.checkout_day)}</b></div><div><small>Door</small><b>${esc(s.door_code || '—')}</b></div></div></div>`
-    : `<div class="stay-card"><span class="eyebrow">No one staying</span><div class="muted" style="font-size:15px">${g.names ? `Next: ${esc(g.names)} from ${esc(g.arrive)}` : 'Add a stay so the TV greets your guests by name.'}</div></div>`}
-    <div class="section"><span class="eyebrow">The TV</span><div class="list">
-      <div class="seg" role="group" aria-label="TV mode"><button data-mode="home" class="${h.mode === 'home' ? 'on' : ''}">Home</button><button data-mode="guest" class="${h.mode !== 'home' && h.mode !== 'kids' ? 'on' : ''}">Guest</button><button data-mode="kids" class="${h.mode === 'kids' ? 'on' : ''}">Kids</button></div>
+    : `<div class="stay-card glass"><span class="eyebrow">No one staying</span><div class="muted" style="font-size:15px">${g.names ? `Next: ${esc(g.names)} from ${esc(g.arrive)}` : 'Add a stay so the TV greets your guests by name.'}</div></div>`}
+    <div class="section"><span class="eyebrow">The TV</span><div class="list glass">
+      <div style="padding:12px 0"><div class="seg" role="group" aria-label="TV mode" style="background:rgba(255,255,255,.1)">
+        <button data-mode="home" class="${h.mode === 'home' ? 'on' : ''}">Home</button><button data-mode="guest" class="${h.mode !== 'home' && h.mode !== 'kids' ? 'on' : ''}">Guest</button><button data-mode="kids" class="${h.mode === 'kids' ? 'on' : ''}">Kids</button></div></div>
       ${toggleRow('locked', 'Lock to Guest mode', 'Leaving it on the TV needs your PIN', h.locked)}
       ${toggleRow('gremote', 'Guest remote', 'Guests control the TV from their phone', h.guest_remote !== false)}
     </div></div>
-    <div class="quick"><button id="newstay">${svg('plus', 26, 'var(--blue)')}New stay</button><button id="remote">${svg('remote', 26, 'var(--blue)')}Remote</button></div>`;
-  if ($('#edit')) $('#edit').onclick = () => go('stay');
-  document.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => save({ mode: b.dataset.mode }, 'TV is in ' + b.dataset.mode[0].toUpperCase() + b.dataset.mode.slice(1) + ' mode').then(todayView));
+    <div class="section"><button class="btn glass" id="newstay">${svg('plus', 20, 2.2)}New stay</button></div>`;
+  if ($('#edit')) $('#edit').onclick = () => { hostTab = 'stay'; hostView(); };
+  document.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => save({ mode: b.dataset.mode }, 'TV is in ' + b.textContent + ' mode').then(hostView));
   $('#locked').onchange = e => save({ locked: e.target.checked }, e.target.checked ? 'Locked to Guest mode' : 'Unlocked');
   $('#gremote').onchange = e => save({ guest_remote: e.target.checked }, e.target.checked ? 'Guest remote on' : 'Guest remote off');
-  $('#newstay').onclick = () => { tab = 'stay'; stayView(true); };
-  $('#remote').onclick = () => go('remote');
+  $('#newstay').onclick = () => { hostTab = 'stay'; stayView(head, true); bindHead(); };
 }
-
-function stayView(fresh) {
+function bindHead() { document.querySelectorAll('[data-ht]').forEach(b => { b.classList.toggle('on', b.dataset.ht === hostTab); b.onclick = () => { tick(); hostTab = b.dataset.ht; actions(null); hostView(); }; }); }
+function stayView(head, fresh) {
   const g = fresh ? {} : (host.guest || {});
   const today = new Date().toISOString().slice(0, 10);
-  app.innerHTML = `<h1>${fresh || !g.names ? 'New stay' : 'Current stay'}</h1>
-    <div class="section"><span class="eyebrow">Guests</span><div class="list">
+  app.innerHTML = head + `<h1 style="margin-top:14px">${fresh || !g.names ? 'New stay' : 'Current stay'}</h1>
+    <div class="section"><span class="eyebrow">Guests</span><div class="list glass">
       <label class="row"><span>Names</span><input id="names" placeholder="e.g. Sarah and Tom" value="${esc(g.names)}"></label></div>
       <div class="note">The TV greets them by name.</div></div>
-    <div class="section"><span class="eyebrow">Dates</span><div class="list">
+    <div class="section"><span class="eyebrow">Dates</span><div class="list glass">
       <label class="row"><span>Arrive</span><input id="arrive" type="date" value="${esc(g.arrive || today)}"></label>
       <label class="row"><span>Depart</span><input id="depart" type="date" value="${esc(g.depart || '')}"></label></div></div>
-    <div class="section"><span class="eyebrow">Door code</span><div class="list">
+    <div class="section"><span class="eyebrow">Door code</span><div class="list glass">
       <label class="row"><span>Code</span><input id="door" inputmode="numeric" value="${esc(fresh ? '' : host.door_code)}" style="font-weight:600;letter-spacing:.1em"></label></div>
       <div class="note">Only shown from the arrive date until an hour after check-out. Between stays the TV shows no names and no code.</div></div>
-    ${g.names ? `<div class="section"><button class="btn red" id="end">End this stay now</button></div>` : ''}
+    ${g.names ? `<div class="section"><button class="btn glass red" id="end">End this stay now</button></div>` : ''}
     <p class="err" id="err"></p>`;
-  sticky(`<button class="btn blue" id="savestay">Save stay</button>`);
+  actions(`<button class="btn solid" id="savestay">Save stay</button>`);
   $('#savestay').onclick = async () => {
     const names = $('#names').value.trim(), arrive = $('#arrive').value, depart = $('#depart').value;
     if (!names) return $('#err').textContent = 'Add your guests’ names.';
     if (!depart) return $('#err').textContent = 'Add the depart date.';
     if (depart < arrive) return $('#err').textContent = 'Depart must be after arrive.';
-    if (await save({ guest: { names, arrive, depart }, door_code: $('#door').value.trim() }, 'Stay saved')) go('today');
+    if (await save({ guest: { names, arrive, depart }, door_code: $('#door').value.trim() }, 'Stay saved')) { hostTab = 'today'; actions(null); hostView(); }
   };
-  if ($('#end')) $('#end').onclick = async () => { if (confirm('End this stay now? The TV stops showing their names and the door code.')) { if (await save({ guest: null, door_code: '' }, 'Stay ended')) go('today'); } };
+  if ($('#end')) $('#end').onclick = async () => { if (confirm('End this stay now? The TV stops showing their names and the door code.')) { if (await save({ guest: null, door_code: '' }, 'Stay ended')) { hostTab = 'today'; actions(null); hostView(); } } };
 }
-
-function placeView() {
+function placeView(head) {
   const h = host;
   let rules = [...(h.rules || [])];
   const render = () => {
-    app.innerHTML = `<h1>Your place</h1>
-      <div class="section"><div class="list">
+    app.innerHTML = head + `<h1 style="margin-top:14px">Your place</h1>
+      <div class="section"><div class="list glass">
         <label class="row"><span>Name</span><input id="place" value="${esc(h.place)}" placeholder="e.g. The Ridge"></label>
         <label class="row"><span>About</span><input id="about" value="${esc(h.about)}" placeholder="Shown between stays"></label></div></div>
-      <div class="section"><span class="eyebrow">Wi-Fi and times</span><div class="list">
+      <div class="section"><span class="eyebrow">Wi-Fi and times</span><div class="list glass">
         <label class="row"><span>Network</span><input id="wifi" value="${esc(h.wifi_name)}"></label>
         <label class="row"><span>Password</span><input id="wifipw" value="${esc(h.wifi_password)}"></label>
         <label class="row"><span>Check-in from</span><input id="cin" type="time" value="${esc(h.checkin || '15:00')}"></label>
         <label class="row"><span>Check-out by</span><input id="cout" type="time" value="${esc(h.checkout || '10:00')}"></label></div></div>
       <div class="section"><div style="display:flex;justify-content:space-between;align-items:baseline;padding:0 4px 8px">
         <span class="eyebrow">House rules</span><button class="link" id="add">Add rule</button></div>
-        <div class="list rules">${rules.length ? rules.map((r, i) => `<div class="row" style="gap:12px">
+        <div class="list glass">${rules.length ? rules.map((r, i) => `<div class="row" style="gap:12px">
           <button class="rule-x" data-del="${i}" aria-label="Remove rule">−</button>
           <input data-rule="${i}" value="${esc(r)}" style="text-align:left" aria-label="Rule ${i + 1}">
-          <button class="move" data-up="${i}" aria-label="Move up" ${i ? '' : 'disabled'}>${svg('up', 18, 'currentColor', 2.2)}</button></div>`).join('')
+          <button class="move" data-up="${i}" aria-label="Move up" ${i ? '' : 'disabled'}>${svg('chev', 18, 2.2)}</button></div>`).join('')
           : `<div class="row muted">No rules yet</div>`}</div></div>`;
-    sticky(`<button class="btn blue" id="saveplace">Save</button>`);
+    bindHead();
+    actions(`<button class="btn solid" id="saveplace">Save</button>`);
     const sync = () => document.querySelectorAll('[data-rule]').forEach(i => rules[+i.dataset.rule] = i.value);
-    const keep = () => ['place', 'about', 'wifi', 'wifipw', 'cin', 'cout'].forEach(id => h[{ wifi: 'wifi_name', wifipw: 'wifi_password', cin: 'checkin', cout: 'checkout' }[id] || id] = $('#' + id).value);
+    const keep = () => { h.place = $('#place').value; h.about = $('#about').value; h.wifi_name = $('#wifi').value; h.wifi_password = $('#wifipw').value; h.checkin = $('#cin').value; h.checkout = $('#cout').value; };
     $('#add').onclick = () => { sync(); keep(); rules.push(''); render(); document.querySelector(`[data-rule="${rules.length - 1}"]`).focus(); };
     document.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { sync(); keep(); rules.splice(+b.dataset.del, 1); render(); });
     document.querySelectorAll('[data-up]').forEach(b => b.onclick = () => { sync(); keep(); const i = +b.dataset.up; [rules[i - 1], rules[i]] = [rules[i], rules[i - 1]]; render(); });
@@ -491,41 +762,39 @@ function placeView() {
   };
   render();
 }
-
-function settingsView() {
-  const h = host, allowed = new Set(h.apps || []);
-  app.innerHTML = `<h1>Settings</h1>
-    <div class="section"><span class="eyebrow">Apps guests can open</span><div class="list">
+function settingsView(head) {
+  const h = host, allowed = new Set(h.apps || []), kidApps = new Set(h.kids_apps || []);
+  app.innerHTML = head + `<h1 style="margin-top:14px">Settings</h1>
+    <div class="section"><span class="eyebrow">Apps guests can open</span><div class="list glass">
       ${apps.map(a => `<label class="row" style="justify-content:flex-start;gap:12px"><img class="icon" src="/api/icon?pkg=${encodeURIComponent(a.pkg)}" alt="">
-        <span style="flex:1 1 auto">${esc(a.label)}</span><span class="switch"><input type="checkbox" data-app="${esc(a.pkg)}" ${allowed.has(a.pkg) ? 'checked' : ''} role="switch" aria-label="${esc(a.label)}"><i></i></span></label>`).join('')}
+        <span style="flex:1 1 auto;min-width:0">${esc(a.label)}</span><span class="switch"><input type="checkbox" data-app="${esc(a.pkg)}" ${allowed.has(a.pkg) ? 'checked' : ''} role="switch" aria-label="${esc(a.label)}"><i></i></span></label>`).join('')}
     </div><div class="note">Only these appear on the welcome screen and the guest remote.</div></div>
-    <div class="section"><span class="eyebrow">Kids mode</span><div class="list">
-      <label class="row"><span>Child's name</span><input id="kidname" value="${esc(h.kids_name)}" placeholder="Optional"></label>
+    <div class="section"><span class="eyebrow">Kids mode</span><div class="list glass">
+      <label class="row"><span>Child’s name</span><input id="kidname" value="${esc(h.kids_name)}" placeholder="Optional"></label>
       ${(h.kids_shows || []).map((k, i) => `<div class="row" style="justify-content:flex-start;gap:12px"><button class="rule-x" data-kidx="${i}" aria-label="Remove ${esc(k.title)}">−</button><span>${esc(k.title)}</span></div>`).join('') || '<div class="row muted">No shows yet</div>'}
-    </div><div class="note">Add shows from Remote: search under “Put on a show”, then tap Add to Kids. Switch the TV to Kids on the Today tab; leaving Kids mode on the TV needs your PIN.</div>
-      <div class="chips" style="padding:10px 0 0">${apps.map(a => `<button data-kapp="${esc(a.pkg)}" class="${(h.kids_apps || []).includes(a.pkg) ? 'on' : ''}" aria-pressed="${(h.kids_apps || []).includes(a.pkg)}">${esc(a.label)}</button>`).join('')}</div>
+    </div><div class="note">Add shows from Watch: search, then tap Add to Kids. Switch the TV to Kids on Today; leaving Kids mode on the TV needs your PIN.</div>
+      <div class="chips" style="padding:10px 0 0">${apps.map(a => `<button data-kapp="${esc(a.pkg)}" class="${kidApps.has(a.pkg) ? 'on' : ''}" aria-pressed="${kidApps.has(a.pkg)}">${esc(a.label)}</button>`).join('')}</div>
       <div class="note">Blue apps show on the Kids screen.</div></div>
-    <div class="section"><span class="eyebrow">Ask about the area</span><div class="list">
-      <div class="row"><span>AI answers</span><span class="v" style="color:${h.ai_configured ? 'var(--green)' : 'var(--dim)'}">${h.ai_configured ? 'On' : 'Off'}</span></div>
+    <div class="section"><span class="eyebrow">Ask about the area</span><div class="list glass">
+      <div class="row"><span>AI answers</span><span class="v" style="color:${h.ai_configured ? 'var(--green)' : 'var(--ink-3)'}">${h.ai_configured ? 'On' : 'Off'}</span></div>
       <label class="row"><span>Groq API key</span><input id="aikey" type="password" placeholder="${h.ai_configured ? 'Saved · paste to replace' : 'gsk_…'}" autocomplete="off"></label>
       ${h.ai_configured ? `<div class="row"><button class="link" id="aiclear" style="color:var(--red)">Remove key</button></div>` : ''}
     </div><div class="note">Guests can ask for dinner spots and things to do. The key stays on the TV and is never shown again.</div></div>
-    <div class="section"><span class="eyebrow">Security</span><div class="list">
+    <div class="section"><span class="eyebrow">Security</span><div class="list glass">
       <label class="row"><span>New PIN</span><input id="newpin" type="password" inputmode="numeric" maxlength="8" placeholder="4 to 8 digits"></label>
       <div class="row"><button class="link" id="setpin">Change PIN</button></div></div></div>
-    <div class="section"><span class="eyebrow">This TV</span><div class="list">
+    <div class="section"><span class="eyebrow">This TV</span><div class="list glass">
       <div class="row"><span>Address</span><span class="muted">${esc(location.host)}</span></div></div></div>
-    <div class="section"><button class="btn red" id="signout">Sign out</button></div>`;
-  document.querySelectorAll('[data-app]').forEach(i => i.onchange = () =>
-    save({ apps: [...document.querySelectorAll('[data-app]:checked')].map(x => x.dataset.app) }, 'Apps updated'));
+    <div class="section"><button class="btn glass red" id="signout">Sign out</button></div>`;
+  document.querySelectorAll('[data-app]').forEach(i => i.onchange = () => save({ apps: [...document.querySelectorAll('[data-app]:checked')].map(x => x.dataset.app) }, 'Apps updated'));
   $('#kidname').onchange = e => save({ kids_name: e.target.value }, 'Saved');
-  document.querySelectorAll('[data-kidx]').forEach(b => b.onclick = async () => { try { await api('/api/kids/remove', { index: +b.dataset.kidx }); host = await api('/api/host'); settingsView(); } catch (e) { toast(e.message); } });
+  document.querySelectorAll('[data-kidx]').forEach(b => b.onclick = async () => { try { await api('/api/kids/remove', { index: +b.dataset.kidx }); hostView(); } catch (e) { toast(e.message); } });
   document.querySelectorAll('[data-kapp]').forEach(b => b.onclick = () => { b.classList.toggle('on'); b.setAttribute('aria-pressed', b.classList.contains('on'));
     save({ kids_apps: [...document.querySelectorAll('[data-kapp].on')].map(x => x.dataset.kapp) }, 'Kids apps updated'); });
-  $('#aikey').onchange = async e => { const k = e.target.value.trim(); if (!k) return; if (await save({ ai_key: k }, 'AI answers on')) settingsView(); };
-  if ($('#aiclear')) $('#aiclear').onclick = async () => { if (await save({ ai_key_clear: true }, 'AI answers off')) settingsView(); };
+  $('#aikey').onchange = async e => { const k = e.target.value.trim(); if (!k) return; if (await save({ ai_key: k }, 'AI answers on')) hostView(); };
+  if ($('#aiclear')) $('#aiclear').onclick = async () => { if (await save({ ai_key_clear: true }, 'AI answers off')) hostView(); };
   $('#setpin').onclick = async () => { try { await api('/api/pin', { pin: $('#newpin').value.trim() }); $('#newpin').value = ''; toast('PIN changed'); } catch (e) { toast(e.message); } };
-  $('#signout').onclick = () => { session = ''; localStorage.removeItem('tvhome-session'); tab = ''; load(); };
+  $('#signout').onclick = () => { session = ''; localStorage.removeItem('tvhome-session'); page = ''; load(); };
 }
 
 load();

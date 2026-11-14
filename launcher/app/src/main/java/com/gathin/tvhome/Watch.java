@@ -60,6 +60,29 @@ final class Watch {
         SEARCH_LINKS.put("com.google.android.youtube.tv", "https://www.youtube.com/results?search_query=");
     }
 
+    /** TV app to JustWatch's short code, so the swipe deck only offers what this TV can play. */
+    private static final Map<String, String> SHORT = new LinkedHashMap<>();
+
+    static {
+        SHORT.put("com.netflix.ninja", "nfx");
+        SHORT.put("com.amazon.amazonvideo.livingroom", "amp");
+        SHORT.put("com.disney.disneyplus", "dnp");
+        SHORT.put("com.crunchyroll.crunchyroid", "cru");
+        SHORT.put("com.apple.atve.androidtv.appletv", "atp");
+        SHORT.put("com.google.android.youtube.tv", "yot");
+        SHORT.put("com.showmax.app", "sma");
+        SHORT.put("com.wbd.stream", "mxx");
+    }
+
+    /** JustWatch genres, as the phone shows them. */
+    static final String[][] GENRES = {{"act", "Action"}, {"ani", "Animation"}, {"cmy", "Comedy"}, {"crm", "Crime"},
+            {"doc", "Documentary"}, {"drm", "Drama"}, {"fnt", "Fantasy"}, {"hst", "History"}, {"hrr", "Horror"},
+            {"fml", "Family"}, {"msc", "Music"}, {"trl", "Thriller"}, {"rma", "Romance"}, {"scf", "Sci-fi"},
+            {"spt", "Sport"}, {"war", "War"}, {"rly", "Reality"}};
+
+    /** The catalogue the swipe deck reads (the TV's country, or the nearest with streaming data), found once. */
+    private static volatile String deckCountry;
+
     /** Links handed out by search, by their random id, so a phone can only start what a search found. */
     private static final Map<String, String[]> LINKS = Collections.synchronizedMap(new LinkedHashMap<String, String[]>() {
         @Override
@@ -133,6 +156,65 @@ final class Watch {
                     .put("where", where));
         }
         return new JSONObject().put("results", out).put("country", from);
+    }
+
+    /**
+     * A page of the swipe deck: popular titles in one genre, only on apps this TV has, each with where to play it.
+     * The phone picks the genre (its own like-learning) and the offset (so cards don't repeat).
+     */
+    static JSONObject discover(Context ctx, String genre, int offset) throws Exception {
+        PackageManager pm = ctx.getPackageManager();
+        JSONArray packages = new JSONArray();
+        for (Map.Entry<String, String> e : SHORT.entrySet()) if (installed(pm, e.getKey())) packages.put(e.getValue());
+        if (packages.length() == 0) return new JSONObject().put("cards", new JSONArray()).put("error", "No streaming apps found on the TV.");
+        JSONObject filter = new JSONObject().put("packages", packages);
+        boolean known = false;
+        for (String[] g : GENRES) if (g[0].equals(genre)) known = true;
+        if (known) filter.put("genres", new JSONArray().put(genre));
+        String q = "query($country: Country!, $language: Language!, $first: Int!, $offset: Int, $filter: TitleFilter) {"
+                + " popularTitles(country: $country, first: $first, offset: $offset, filter: $filter) { edges { node { id objectType"
+                + " content(country: $country, language: $language) { title originalReleaseYear posterUrl shortDescription genres { shortName } }"
+                + " offers(country: $country, platform: ANDROID_TV) { " + OFFER + " } } } } }";
+        String[] chain = deckCountry != null ? new String[]{deckCountry} : new String[]{country(ctx), "ZA", "GB", "US"};
+        JSONArray edges = new JSONArray();
+        for (String c : chain) {
+            JSONObject vars = new JSONObject().put("country", c).put("language", "en").put("first", 12)
+                    .put("offset", Math.max(0, Math.min(offset, 500))).put("filter", filter);
+            edges = post(new JSONObject().put("query", q).put("variables", vars)).getJSONObject("popularTitles").getJSONArray("edges");
+            if (edges.length() > 0) {
+                deckCountry = c;
+                break;
+            }
+        }
+        JSONArray cards = new JSONArray();
+        for (int i = 0; i < edges.length(); i++) {
+            JSONObject n = edges.getJSONObject(i).getJSONObject("node");
+            JSONObject c = n.getJSONObject("content");
+            JSONArray genres = new JSONArray();
+            JSONArray gs = c.optJSONArray("genres");
+            if (gs != null) for (int k = 0; k < gs.length(); k++) genres.put(gs.getJSONObject(k).optString("shortName"));
+            JSONArray where = new JSONArray();
+            java.util.Set<String> seen = new java.util.HashSet<>();
+            JSONArray offers = n.optJSONArray("offers");
+            if (offers != null) for (int k = 0; k < offers.length(); k++) {
+                JSONObject o = offers.getJSONObject(k);
+                String pkg = APPS.get(o.getJSONObject("package").optString("technicalName"));
+                String link = o.optString("deeplinkURL", "");
+                if (pkg == null || "null".equals(link) || link.isEmpty() || !installed(pm, pkg) || !seen.add(pkg)) continue;
+                where.put(new JSONObject().put("name", o.getJSONObject("package").optString("clearName"))
+                        .put("kind", kind(o.optString("monetizationType"))).put("id", remember(pkg, link)));
+            }
+            String poster = c.optString("posterUrl", "");
+            if (where.length() == 0 || poster.isEmpty() || "null".equals(poster)) continue;
+            cards.put(new JSONObject().put("key", n.optString("id")).put("title", c.optString("title"))
+                    .put("year", c.optInt("originalReleaseYear")).put("type", "SHOW".equals(n.optString("objectType")) ? "Show" : "Film")
+                    .put("poster", "https://images.justwatch.com" + poster.replace("{profile}", "s592").replace("{format}", "jpg"))
+                    .put("overview", "null".equals(c.optString("shortDescription")) ? "" : c.optString("shortDescription"))
+                    .put("genres", genres).put("where", where));
+        }
+        JSONArray names = new JSONArray();
+        for (String[] g : GENRES) names.put(new JSONArray().put(g[0]).put(g[1]));
+        return new JSONObject().put("cards", cards).put("genres", names);
     }
 
     /** The app and link behind a search result's id, or null. */

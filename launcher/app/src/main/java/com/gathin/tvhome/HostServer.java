@@ -154,6 +154,14 @@ final class HostServer {
                 }
             }
             boolean host = authorized(headers.get("x-session"));
+            if ("GET".equals(method) && "/api/backdrop".equals(path)) {
+                backdrop(socket.getOutputStream());
+                return;
+            }
+            if ("GET".equals(method) && "/api/now/art".equals(path)) {
+                nowArt(socket.getOutputStream());
+                return;
+            }
             if ("GET".equals(method) && "/api/icon".equals(path)) {
                 icon(socket.getOutputStream(), param(query, "pkg"));
                 return;
@@ -213,6 +221,14 @@ final class HostServer {
             case "POST /api/watch/search":
                 if (!host && !guestRemote()) break;
                 json(out, 200, Watch.search(ctx, body.optString("q", "")));
+                return;
+            case "POST /api/watch/discover":
+                if (!host && !guestRemote()) break;
+                json(out, 200, Watch.discover(ctx, body.optString("genre"), body.optInt("offset")));
+                return;
+            case "GET /api/now":
+                if (!host && !guestRemote()) break;
+                json(out, 200, now());
                 return;
             case "POST /api/watch/play":
                 if (!host && !guestRemote()) break;
@@ -495,6 +511,91 @@ final class HostServer {
         }
     }
 
+    // ---- now playing and the backdrop, for the phone's remote -------------------------------------------
+
+    /** The media session that is playing, else the first one; null without the notification-listener grant. */
+    private android.media.session.MediaController playing() {
+        try {
+            android.media.session.MediaSessionManager m = ctx.getSystemService(android.media.session.MediaSessionManager.class);
+            java.util.List<android.media.session.MediaController> list =
+                    m.getActiveSessions(new android.content.ComponentName(ctx, GuardRevival.class));
+            android.media.session.MediaController first = null;
+            for (android.media.session.MediaController c : list) {
+                if (c.getMetadata() == null) continue;
+                if (first == null) first = c;
+                if (c.getPlaybackState() != null && c.getPlaybackState().getState() == android.media.session.PlaybackState.STATE_PLAYING) return c;
+            }
+            return first;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private JSONObject now() throws Exception {
+        android.media.session.MediaController c = playing();
+        if (c == null) return new JSONObject().put("playing", false).put("title", "");
+        android.media.MediaMetadata m = c.getMetadata();
+        android.media.session.PlaybackState st = c.getPlaybackState();
+        String title = m.getString(android.media.MediaMetadata.METADATA_KEY_TITLE);
+        if (title == null) title = m.getString(android.media.MediaMetadata.METADATA_KEY_DISPLAY_TITLE);
+        String sub = m.getString(android.media.MediaMetadata.METADATA_KEY_ARTIST);
+        if (sub == null) sub = m.getString(android.media.MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE);
+        String app;
+        try {
+            app = String.valueOf(ctx.getPackageManager().getApplicationLabel(ctx.getPackageManager().getApplicationInfo(c.getPackageName(), 0)));
+        } catch (Exception e) {
+            app = "";
+        }
+        long pos = st == null ? 0 : st.getPosition();
+        if (st != null && st.getState() == android.media.session.PlaybackState.STATE_PLAYING && st.getLastPositionUpdateTime() > 0) {
+            pos += (long) ((android.os.SystemClock.elapsedRealtime() - st.getLastPositionUpdateTime()) * st.getPlaybackSpeed());
+        }
+        return new JSONObject().put("title", title == null ? "" : title).put("sub", sub == null ? "" : sub).put("app", app)
+                .put("playing", st != null && st.getState() == android.media.session.PlaybackState.STATE_PLAYING)
+                .put("position", Math.max(0, pos)).put("duration", Math.max(0, m.getLong(android.media.MediaMetadata.METADATA_KEY_DURATION)))
+                .put("art", artOf(m) != null);
+    }
+
+    private static android.graphics.Bitmap artOf(android.media.MediaMetadata m) {
+        for (String k : new String[]{android.media.MediaMetadata.METADATA_KEY_ALBUM_ART, android.media.MediaMetadata.METADATA_KEY_ART,
+                android.media.MediaMetadata.METADATA_KEY_DISPLAY_ICON}) {
+            android.graphics.Bitmap b = m.getBitmap(k);
+            if (b != null) return b;
+        }
+        return null;
+    }
+
+    private void nowArt(OutputStream out) throws Exception {
+        android.media.session.MediaController c = playing();
+        android.graphics.Bitmap b = c == null || c.getMetadata() == null ? null : artOf(c.getMetadata());
+        if (b == null) {
+            reply(out, 404, "text/plain", "no art");
+            return;
+        }
+        jpeg(out, b, 360);
+    }
+
+    /** The picture behind the TV's welcome screen, small: the phone blurs it into its background. */
+    private void backdrop(OutputStream out) throws Exception {
+        android.graphics.Bitmap b = WallpaperPlayer.shownBitmap;
+        if (b == null || b.isRecycled()) {
+            reply(out, 404, "text/plain", "no picture");
+            return;
+        }
+        jpeg(out, b, 320);
+    }
+
+    private static void jpeg(OutputStream out, android.graphics.Bitmap src, int width) throws Exception {
+        android.graphics.Bitmap sw = src.getConfig() == android.graphics.Bitmap.Config.HARDWARE ? src.copy(android.graphics.Bitmap.Config.ARGB_8888, false) : src;
+        int h = Math.max(1, Math.round(sw.getHeight() * (width / (float) sw.getWidth())));
+        android.graphics.Bitmap small = android.graphics.Bitmap.createScaledBitmap(sw, width, h, true);
+        ByteArrayOutputStream b = new ByteArrayOutputStream();
+        small.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, b);
+        if (sw != src) sw.recycle();
+        if (small != sw && small != src) small.recycle();
+        reply(out, 200, "image/jpeg", b.toByteArray());
+    }
+
     // ---- weather, for the phone's welcome --------------------------------------------------------------
 
     private JSONObject weather;
@@ -611,6 +712,8 @@ final class HostServer {
         KEYS.put("volup", 24);
         KEYS.put("voldown", 25);
         KEYS.put("mute", 164);
+        KEYS.put("next", 87);
+        KEYS.put("previous", 88);
     }
 
     /** Keys go through the TV's own ADB (granted in setup); opening an allowed app needs nothing. */
@@ -629,7 +732,16 @@ final class HostServer {
             main.post(() -> ctx.startActivity(launch));
             return new JSONObject().put("ok", true);
         }
-        Integer code = KEYS.get(b.optString("key"));
+        String k = b.optString("key");
+        // Ten seconds back or on, through the playing app's own controls (keys can't say "ten seconds").
+        if ("back10".equals(k) || "fwd10".equals(k)) {
+            android.media.session.MediaController c = playing();
+            if (c == null || c.getPlaybackState() == null) return new JSONObject().put("error", "Nothing is playing.");
+            long pos = c.getPlaybackState().getPosition() + ("fwd10".equals(k) ? 10_000 : -10_000);
+            c.getTransportControls().seekTo(Math.max(0, pos));
+            return new JSONObject().put("ok", true);
+        }
+        Integer code = KEYS.get(k);
         if (code == null) return new JSONObject().put("error", "Unknown key.");
         return new JSONObject().put("ok", key(code));
     }
