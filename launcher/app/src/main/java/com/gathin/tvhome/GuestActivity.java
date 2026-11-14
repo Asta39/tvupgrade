@@ -42,6 +42,8 @@ import java.util.Locale;
  * screen while stay.json says "mode": "guest" (Stay). Menu opens the switch back to Home mode.
  */
 public class GuestActivity extends Activity {
+    /** Home's frosted glass tints (as Now Playing): dark enough for white text on any picture, lighter on focus. */
+    private static final int CARD_TINT = 0x66000000, CARD_TINT_FOCUSED = 0x2EFFFFFF;
     private final Handler main = new Handler(Looper.getMainLooper());
     private float dp;
     private Stay stay;
@@ -85,6 +87,8 @@ public class GuestActivity extends Activity {
         // The glass digits refract whatever WallpaperPlayer says is on screen: here, this picture.
         WallpaperPlayer.shownView = wall;
         WallpaperPlayer.shownBitmap = wallBitmap;
+        // Home's frosted panels (FrostedLayout) draw a pre-softened copy of the picture behind them: make it from this one.
+        if (wallBitmap != null) WallpaperPlayer.glass = WallpaperPlayer.softened(wallBitmap);
 
         LinearLayout clockBox = new LinearLayout(this);
         clockBox.setOrientation(LinearLayout.VERTICAL);
@@ -259,13 +263,14 @@ public class GuestActivity extends Activity {
             View c = cards.getChildAt(i);
             c.setLayoutParams(cards.getChildCount() >= 3 ? weighted() : c.getLayoutParams());
         }
-        // The phone page's code sits in the top right corner, apart from the cards.
+        // The phone page's code sits on the right, apart from the cards.
         if (qrView != null) screen.removeView(qrView);
         qrView = HostServer.claimCode != null || qrOpen ? qrCard() : null;
         if (qrView != null) {
-            FrameLayout.LayoutParams ql = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.END);
-            ql.topMargin = px(36);
-            ql.rightMargin = px(40);
+            // Beside the welcome, just above the cards: clear of the clock in 12- and 24-hour time.
+            FrameLayout.LayoutParams ql = new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.END);
+            ql.bottomMargin = px(236);
+            ql.rightMargin = px(56);
             screen.addView(qrView, ql);
         }
         // The host may have changed which apps guests can open.
@@ -285,10 +290,11 @@ public class GuestActivity extends Activity {
         String code = HostServer.claimCode;
         Bitmap bmp = HostQr.bitmap(code != null ? url + "#claim=" + code : url, px(88));
         if (bmp == null) return null;
+        FrostedLayout frost = new FrostedLayout(this, 22, CARD_TINT);
         LinearLayout box = new LinearLayout(this);
         box.setGravity(Gravity.CENTER_VERTICAL);
-        box.setPadding(px(10), px(10), px(16), px(10));
-        box.setBackground(glass(0x38FFFFFF, 18));
+        box.setPadding(px(12), px(12), px(18), px(12));
+        frost.addView(box);
         ImageView q = new ImageView(this);
         q.setImageBitmap(bmp);
         box.addView(q, new LinearLayout.LayoutParams(px(88), px(88)));
@@ -307,7 +313,7 @@ public class GuestActivity extends Activity {
         how.setLineSpacing(px(2), 1f);
         col.addView(how, lp(-2, -2, 4));
         box.addView(col);
-        return box;
+        return frost;
     }
 
     private LinearLayout.LayoutParams weighted() {
@@ -323,10 +329,8 @@ public class GuestActivity extends Activity {
 
     /** A glass card: small heading, one big line, one small line. Focusable only when it opens something. */
     private View card(String heading, String big, String small, View.OnClickListener open) {
-        FrameLayout box = new FrameLayout(this);
+        FrostedLayout box = new FrostedLayout(this, 20, CARD_TINT);
         box.setPadding(px(16), px(12), px(16), px(12));
-        GradientDrawable bg = glass(0x38FFFFFF, 18);
-        box.setBackground(bg);
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
         TextView h = text(heading, 11, 0xB3FFFFFF, R.string.font_medium);
@@ -348,7 +352,7 @@ public class GuestActivity extends Activity {
             box.setClickable(true);
             box.setOnClickListener(open);
             box.setOnFocusChangeListener((v, f) -> {
-                v.setBackground(f ? glass(0x66FFFFFF, 18) : glass(0x38FFFFFF, 18));
+                box.setTint(f ? CARD_TINT_FOCUSED : CARD_TINT);
                 v.animate().scaleX(f ? 1.04f : 1f).scaleY(f ? 1.04f : 1f).setDuration(150).start();
             });
         }
@@ -365,7 +369,6 @@ public class GuestActivity extends Activity {
         bar.setClipChildren(false);
         bar.setClipToPadding(false);
         bar.setPadding(px(6), px(6), px(6), px(6));
-        bar.setBackground(glass(0x2EFFFFFF, 24));
         bar.addView(chip(null, "House guide", v -> showRules()));
         // Last on the row: the host's way out (Menu does the same), behind the PIN once the TV is locked.
         View hostChip = chip(null, "Host", v -> hostMenu());
@@ -398,7 +401,11 @@ public class GuestActivity extends Activity {
             }));
         }
         bar.addView(hostChip);
-        return bar;
+        // The row sits on the same frosted glass as Home's Now Playing card.
+        FrostedLayout frost = new FrostedLayout(this, 26, CARD_TINT);
+        frost.setClipChildren(false);
+        frost.addView(bar);
+        return frost;
     }
 
     private View chip(Drawable icon, String name, View.OnClickListener open) {
@@ -434,7 +441,7 @@ public class GuestActivity extends Activity {
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
         panel.setPadding(px(36), px(30), px(36), px(30));
-        panel.setBackground(glass(0xE61C1C1E, 24));
+
         panel.addView(text("House guide", 28, Color.WHITE, R.string.font_medium));
         StringBuilder b = new StringBuilder();
         if (!stay.rules.isEmpty()) for (String r : stay.rules) b.append("•  ").append(r).append("\n");
@@ -445,7 +452,10 @@ public class GuestActivity extends Activity {
         panel.addView(body, lp(-1, -2, 16));
         TextView hint = text("Press Back to close", 13, 0x99FFFFFF, R.string.font_regular);
         panel.addView(hint, lp(-2, -2, 18));
-        scrim.addView(panel, new FrameLayout.LayoutParams(px(640), -2, Gravity.CENTER));
+        // Control Center's material: the picture, softened, under a heavy tint.
+        FrostedLayout sheet = new FrostedLayout(this, 28, 0x80000000);
+        sheet.addView(panel);
+        scrim.addView(sheet, new FrameLayout.LayoutParams(px(640), -2, Gravity.CENTER));
         scrim.setFocusable(true);
         ((FrameLayout) findViewById(android.R.id.content)).addView(scrim, new FrameLayout.LayoutParams(-1, -1));
         scrim.requestFocus();
