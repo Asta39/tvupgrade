@@ -281,7 +281,7 @@ what the app supports and how to report a barrier.
 
 ## Credits
 
-- [couch-tv](https://github.com/Seagey/couch-tv) by Seagey: the privacy list, the rule to keep the TV's own home on, and the Home role request (MIT)
+- [couch-tv](https://github.com/Seagey/couch-tv) by Seagey: the privacy list, the rule to keep the TV's own home on, the Home role request, the JustWatch show search and deep-link approach, the Kids mode idea and the iPhone haptics trick (MIT)
 - [cleanyourtv](https://github.com/Gathin23/cleanyourtv) by Gathin23: the launcher, tools and safety rules (MIT, see [LICENSE](LICENSE))
 - [Outfit](https://fonts.google.com/specimen/Outfit) and [Barlow Condensed](https://fonts.google.com/specimen/Barlow+Condensed) (the clock) typefaces, both SIL Open Font License ([`launcher/FONT-LICENSE-OFL.txt`](launcher/FONT-LICENSE-OFL.txt))
 - Wallpaper photos belong to their photographers

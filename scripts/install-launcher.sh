@@ -18,3 +18,5 @@ adb -s "$TV_HOST" shell cmd package set-home-activity --user 0 com.gathin.tvhome
 adb -s "$TV_HOST" shell settings put secure enabled_accessibility_services com.gathin.tvhome/.SleepService:com.gathin.tvhome/.HomeKeyService
 adb -s "$TV_HOST" shell settings put secure accessibility_enabled 1
 adb -s "$TV_HOST" shell pm grant com.gathin.tvhome android.permission.READ_TV_LISTINGS
+# Bring this launcher up now: right after an update the TV can fall back to its own home until the next app opens.
+adb -s "$TV_HOST" shell am start -n com.gathin.tvhome/.MainActivity >/dev/null 2>&1 || true

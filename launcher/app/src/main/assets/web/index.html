@@ -47,7 +47,7 @@
   .status { display: inline-flex; align-items: center; gap: 6px; background: var(--card); border-radius: 999px; padding: 6px 12px; font-size: 13px; color: var(--green); }
   .status i { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
   .status.off { color: var(--dim); } .status.off i { background: var(--faint); }
-  .seg { display: grid; grid-template-columns: 1fr 1fr; background: var(--fill); border-radius: 10px; padding: 2px; margin: 12px 0; }
+  .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--fill); border-radius: 10px; padding: 2px; margin: 12px 0; }
   .seg button { border: 0; background: none; color: var(--dim); font-weight: 600; font-size: 15px; border-radius: 8px; min-height: 34px; }
   .seg button.on { background: var(--faint); color: #fff; }
   .switch { position: relative; width: 51px; height: 31px; flex: 0 0 auto; }
@@ -82,6 +82,12 @@
   .chips { display: flex; gap: 8px; flex-wrap: wrap; }
   .chips button { border: 0; background: var(--fill); color: #fff; font-size: 14px; font-weight: 500; border-radius: 999px; padding: 8px 14px; min-height: 36px; }
   .answer { font-size: 16px; line-height: 1.45; white-space: pre-wrap; }
+  .title { display: flex; gap: 12px; padding: 12px 0; border-top: 1px solid var(--sep); }
+  .title:first-child { border-top: 0; }
+  .poster { width: 56px; height: 84px; border-radius: 8px; object-fit: cover; background: var(--fill); flex: 0 0 auto; }
+  .tinfo { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .tinfo small { color: var(--dim); font-size: 13px; }
+  .chips button.on { background: var(--blue); }
   .rules .row { justify-content: flex-start; }
   .rule-x { width: 22px; height: 22px; border-radius: 50%; border: 0; background: var(--red); color: #fff; font-weight: 700; line-height: 1; flex: 0 0 auto; padding: 0; }
   .move { border: 0; background: none; color: var(--faint); padding: 4px; min-width: 32px; min-height: 32px; }
@@ -145,6 +151,19 @@ const svg = (name, size = 24, color = 'currentColor', w = 1.8) =>
   `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[name]}</svg>`;
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function toast(t) { const e = $('#toast'); e.textContent = t; e.classList.add('show'); clearTimeout(e._t); e._t = setTimeout(() => e.classList.remove('show'), 1800); }
+// A light tap under the finger. iPhone Safari has no vibrate API; since iOS 18, toggling a hidden switch through its
+// label plays the system tick (the trick is from couch-tv's haptics.js, MIT). Only works inside a touch or click.
+let hapticLabel;
+function tick() {
+  if (navigator.vibrate) { navigator.vibrate(8); return; }
+  if (!hapticLabel) {
+    const i = document.createElement('input'); i.type = 'checkbox'; i.setAttribute('switch', ''); i.id = 'haptic'; i.tabIndex = -1;
+    hapticLabel = document.createElement('label'); hapticLabel.htmlFor = 'haptic';
+    for (const el of [i, hapticLabel]) { el.setAttribute('aria-hidden', 'true'); Object.assign(el.style, { position: 'fixed', left: '-9999px', opacity: '0', pointerEvents: 'none' }); }
+    document.body.append(i, hapticLabel);
+  }
+  hapticLabel.click();
+}
 async function api(path, body) {
   const r = await fetch(path, { method: body ? 'POST' : 'GET', headers: { 'Content-Type': 'application/json', 'X-Session': session },
     body: body ? JSON.stringify(body) : undefined });
@@ -296,22 +315,67 @@ function remoteView() {
         <button class="key" data-k="volup" aria-label="Volume up">+</button></div>`
       : `<p class="note">The arrows need debugging switched on in the TV’s setup. Apps still open from here.</p>`}
     ${s.apps.length ? `<div class="section"><span class="eyebrow">Open on the TV</span><div class="apps">
-      ${s.apps.map(a => `<button class="app" data-app="${esc(a.pkg)}"><img class="icon" src="/api/icon?pkg=${encodeURIComponent(a.pkg)}" alt=""><span>${esc(a.label)}</span></button>`).join('')}</div></div>` : ''}`;
+      ${s.apps.map(a => `<button class="app" data-app="${esc(a.pkg)}"><img class="icon" src="/api/icon?pkg=${encodeURIComponent(a.pkg)}" alt=""><span>${esc(a.label)}</span></button>`).join('')}</div></div>` : ''}
+    <div class="section"><span class="eyebrow">Put on a show</span><div class="ask">
+      <form class="field" id="watchf">${svg('search', 18, 'var(--dim)', 2)}<input id="wq" placeholder="Bluey, Stranger Things…" aria-label="Name of a show or film" enterkeyhint="search"></form>
+      <div id="wres"></div></div></div>`;
   if ($('#back')) $('#back').onclick = () => go('today');
-  const send = k => { navigator.vibrate?.(8); api('/api/remote', { key: k }).catch(e => toast(e.message)); };
+  const send = k => { tick(); api('/api/remote', { key: k }).catch(e => toast(e.message)); };
+  watchBox();
   document.querySelectorAll('[data-k]').forEach(b => b.onclick = e => { e.stopPropagation(); send(b.dataset.k); });
   document.querySelectorAll('[data-app]').forEach(b => b.onclick = () => api('/api/remote', { app: b.dataset.app }).then(() => toast('Opening…')).catch(e => toast(e.message)));
   const pad = $('#pad');
   if (pad) {
-    let x0, y0;
-    pad.addEventListener('pointerdown', e => { if (e.target.closest('.ok')) return; x0 = e.clientX; y0 = e.clientY; pad.setPointerCapture(e.pointerId); });
-    pad.addEventListener('pointerup', e => {
+    // Like a trackpad: every STEP points the finger travels is one move, so a long swipe crosses several tiles and
+    // changing direction mid-swipe works. A touch that never travels is a tap: select.
+    const STEP = 44;
+    let x0, y0, moved;
+    const flash = () => { pad.classList.add('flash'); setTimeout(() => pad.classList.remove('flash'), 120); };
+    pad.addEventListener('pointerdown', e => { if (e.target.closest('.ok')) return; x0 = e.clientX; y0 = e.clientY; moved = false; pad.setPointerCapture(e.pointerId); });
+    pad.addEventListener('pointermove', e => {
       if (x0 === undefined) return;
-      const dx = e.clientX - x0, dy = e.clientY - y0; x0 = undefined;
-      const dir = Math.max(Math.abs(dx), Math.abs(dy)) < 24 ? 'ok' : Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
-      pad.classList.add('flash'); setTimeout(() => pad.classList.remove('flash'), 120); send(dir);
+      const dx = e.clientX - x0, dy = e.clientY - y0;
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < STEP) return;
+      moved = true; x0 = e.clientX; y0 = e.clientY; flash();
+      send(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'));
     });
+    const end = e => { if (x0 === undefined) return; x0 = undefined; if (!moved && e.type === 'pointerup') { flash(); send('ok'); } };
+    pad.addEventListener('pointerup', end);
+    pad.addEventListener('pointercancel', end);
   }
+}
+
+// "Put on a show": search by name, then open it in an app on the TV (the TV finds where it streams).
+function watchBox() {
+  if (!$('#watchf')) return;
+  let results = [];
+  const kindWord = { free: 'Free on', subscription: 'Play on', rent: 'Rent on', buy: 'Buy on', other: 'Open in' };
+  const find = async q => {
+    if (!q.trim()) return;
+    const box = $('#wres'); box.innerHTML = '<div class="answer muted">Searching…</div>';
+    try {
+      const r = await api('/api/watch/search', { q });
+      if (r.error) { box.innerHTML = `<div class="answer muted">${esc(r.error)}</div>`; return; }
+      results = r.results;
+      box.innerHTML = results.length ? results.map((t, i) => {
+        const play = t.where.filter(w => w.id);
+        const elsewhere = t.where.filter(w => !w.id).map(w => w.name);
+        return `<div class="title">${t.poster ? `<img class="poster" src="${esc(t.poster)}" alt="">` : '<span class="poster"></span>'}
+          <div class="tinfo"><b>${esc(t.title)}</b><small>${esc(t.type)}${t.year ? ' · ' + t.year : ''}</small>
+          <div class="chips">${play.map(w => `<button data-play="${esc(w.id)}">${w.kind === 'search' ? esc(w.name) : kindWord[w.kind] + ' ' + esc(w.name)}</button>`).join('')}
+            ${state.host && play.length ? `<button data-kid="${i}">Add to Kids</button>` : ''}</div>
+          ${elsewhere.length ? `<small>Also streams on ${esc(elsewhere.slice(0, 3).join(', '))} (not on this TV)</small>` : ''}</div></div>`;
+      }).join('') : '<div class="answer muted">Nothing found. Try the exact title.</div>';
+      box.querySelectorAll('[data-play]').forEach(b => b.onclick = () => { tick(); api('/api/watch/play', { id: b.dataset.play })
+        .then(x => toast(x.error || x.note || 'Opening on the TV…')).catch(e => toast(e.message)); });
+      box.querySelectorAll('[data-kid]').forEach(b => b.onclick = async () => {
+        const t = results[+b.dataset.kid], w = t.where.find(x => x.id && x.kind !== 'search') || t.where.find(x => x.id);
+        try { const x = await api('/api/kids/add', { id: w.id, title: t.title, poster: t.poster }); toast(x.error || 'Added to Kids'); if (!x.error) b.classList.add('on'); }
+        catch (e) { toast(e.message); }
+      });
+    } catch (e) { box.innerHTML = `<div class="answer muted">${esc(e.message)}</div>`; }
+  };
+  $('#watchf').onsubmit = e => { e.preventDefault(); find($('#wq').value); $('#wq').blur(); };
 }
 
 function signIn() {
@@ -356,13 +420,13 @@ function todayView() {
       <div class="mini"><div><small>Night</small><b>${s.night} of ${s.nights}</b></div><div><small>Leaves</small><b>${esc(s.checkout_day)}</b></div><div><small>Door</small><b>${esc(s.door_code || '—')}</b></div></div></div>`
     : `<div class="stay-card"><span class="eyebrow">No one staying</span><div class="muted" style="font-size:15px">${g.names ? `Next: ${esc(g.names)} from ${esc(g.arrive)}` : 'Add a stay so the TV greets your guests by name.'}</div></div>`}
     <div class="section"><span class="eyebrow">The TV</span><div class="list">
-      <div class="seg" role="group" aria-label="TV mode"><button data-mode="home" class="${h.mode === 'home' ? 'on' : ''}">Home</button><button data-mode="guest" class="${h.mode !== 'home' ? 'on' : ''}">Guest</button></div>
+      <div class="seg" role="group" aria-label="TV mode"><button data-mode="home" class="${h.mode === 'home' ? 'on' : ''}">Home</button><button data-mode="guest" class="${h.mode !== 'home' && h.mode !== 'kids' ? 'on' : ''}">Guest</button><button data-mode="kids" class="${h.mode === 'kids' ? 'on' : ''}">Kids</button></div>
       ${toggleRow('locked', 'Lock to Guest mode', 'Leaving it on the TV needs your PIN', h.locked)}
       ${toggleRow('gremote', 'Guest remote', 'Guests control the TV from their phone', h.guest_remote !== false)}
     </div></div>
     <div class="quick"><button id="newstay">${svg('plus', 26, 'var(--blue)')}New stay</button><button id="remote">${svg('remote', 26, 'var(--blue)')}Remote</button></div>`;
   if ($('#edit')) $('#edit').onclick = () => go('stay');
-  document.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => save({ mode: b.dataset.mode }, b.dataset.mode === 'home' ? 'TV is in Home mode' : 'TV is in Guest mode').then(todayView));
+  document.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => save({ mode: b.dataset.mode }, 'TV is in ' + b.dataset.mode[0].toUpperCase() + b.dataset.mode.slice(1) + ' mode').then(todayView));
   $('#locked').onchange = e => save({ locked: e.target.checked }, e.target.checked ? 'Locked to Guest mode' : 'Unlocked');
   $('#gremote').onchange = e => save({ guest_remote: e.target.checked }, e.target.checked ? 'Guest remote on' : 'Guest remote off');
   $('#newstay').onclick = () => { tab = 'stay'; stayView(true); };
@@ -435,6 +499,12 @@ function settingsView() {
       ${apps.map(a => `<label class="row" style="justify-content:flex-start;gap:12px"><img class="icon" src="/api/icon?pkg=${encodeURIComponent(a.pkg)}" alt="">
         <span style="flex:1 1 auto">${esc(a.label)}</span><span class="switch"><input type="checkbox" data-app="${esc(a.pkg)}" ${allowed.has(a.pkg) ? 'checked' : ''} role="switch" aria-label="${esc(a.label)}"><i></i></span></label>`).join('')}
     </div><div class="note">Only these appear on the welcome screen and the guest remote.</div></div>
+    <div class="section"><span class="eyebrow">Kids mode</span><div class="list">
+      <label class="row"><span>Child's name</span><input id="kidname" value="${esc(h.kids_name)}" placeholder="Optional"></label>
+      ${(h.kids_shows || []).map((k, i) => `<div class="row" style="justify-content:flex-start;gap:12px"><button class="rule-x" data-kidx="${i}" aria-label="Remove ${esc(k.title)}">−</button><span>${esc(k.title)}</span></div>`).join('') || '<div class="row muted">No shows yet</div>'}
+    </div><div class="note">Add shows from Remote: search under “Put on a show”, then tap Add to Kids. Switch the TV to Kids on the Today tab; leaving Kids mode on the TV needs your PIN.</div>
+      <div class="chips" style="padding:10px 0 0">${apps.map(a => `<button data-kapp="${esc(a.pkg)}" class="${(h.kids_apps || []).includes(a.pkg) ? 'on' : ''}" aria-pressed="${(h.kids_apps || []).includes(a.pkg)}">${esc(a.label)}</button>`).join('')}</div>
+      <div class="note">Blue apps show on the Kids screen.</div></div>
     <div class="section"><span class="eyebrow">Ask about the area</span><div class="list">
       <div class="row"><span>AI answers</span><span class="v" style="color:${h.ai_configured ? 'var(--green)' : 'var(--dim)'}">${h.ai_configured ? 'On' : 'Off'}</span></div>
       <label class="row"><span>Groq API key</span><input id="aikey" type="password" placeholder="${h.ai_configured ? 'Saved · paste to replace' : 'gsk_…'}" autocomplete="off"></label>
@@ -448,6 +518,10 @@ function settingsView() {
     <div class="section"><button class="btn red" id="signout">Sign out</button></div>`;
   document.querySelectorAll('[data-app]').forEach(i => i.onchange = () =>
     save({ apps: [...document.querySelectorAll('[data-app]:checked')].map(x => x.dataset.app) }, 'Apps updated'));
+  $('#kidname').onchange = e => save({ kids_name: e.target.value }, 'Saved');
+  document.querySelectorAll('[data-kidx]').forEach(b => b.onclick = async () => { try { await api('/api/kids/remove', { index: +b.dataset.kidx }); host = await api('/api/host'); settingsView(); } catch (e) { toast(e.message); } });
+  document.querySelectorAll('[data-kapp]').forEach(b => b.onclick = () => { b.classList.toggle('on'); b.setAttribute('aria-pressed', b.classList.contains('on'));
+    save({ kids_apps: [...document.querySelectorAll('[data-kapp].on')].map(x => x.dataset.kapp) }, 'Kids apps updated'); });
   $('#aikey').onchange = async e => { const k = e.target.value.trim(); if (!k) return; if (await save({ ai_key: k }, 'AI answers on')) settingsView(); };
   if ($('#aiclear')) $('#aiclear').onclick = async () => { if (await save({ ai_key_clear: true }, 'AI answers off')) settingsView(); };
   $('#setpin').onclick = async () => { try { await api('/api/pin', { pin: $('#newpin').value.trim() }); $('#newpin').value = ''; toast('PIN changed'); } catch (e) { toast(e.message); } };

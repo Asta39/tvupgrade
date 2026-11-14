@@ -210,6 +210,29 @@ final class HostServer {
                 j.remove("ai_key");
                 json(out, 200, j);
                 return;
+            case "POST /api/watch/search":
+                if (!host && !guestRemote()) break;
+                json(out, 200, Watch.search(ctx, body.optString("q", "")));
+                return;
+            case "POST /api/watch/play":
+                if (!host && !guestRemote()) break;
+                JSONObject played = Watch.play(ctx, body.optString("id"));
+                json(out, 200, played);
+                return;
+            case "POST /api/kids/add":
+                if (!host) break;
+                json(out, 200, kidsAdd(body));
+                return;
+            case "POST /api/kids/remove":
+                if (!host) break;
+                JSONObject k = Stay.json(ctx);
+                JSONArray shows = k.optJSONArray("kids_shows");
+                int at = body.optInt("index", -1);
+                if (shows != null && at >= 0 && at < shows.length()) shows.remove(at);
+                Stay.write(ctx, k);
+                changed();
+                json(out, 200, new JSONObject().put("ok", true));
+                return;
             case "POST /api/ask":
                 if (!host && !"guest".equals(Stay.json(ctx).optString("mode"))) break;
                 json(out, 200, ask(body.optString("q", "")));
@@ -343,7 +366,7 @@ final class HostServer {
         JSONObject o = new JSONObject()
                 .put("claimed", !s.optString("pin_sha256", "").isEmpty())
                 .put("host", host)
-                .put("mode", stay.guestMode ? "guest" : "home")
+                .put("mode", stay.kids ? "kids" : stay.guestMode ? "guest" : "home")
                 .put("place", stay.place).put("about", stay.about)
                 .put("wifi_name", stay.wifiName).put("wifi_password", stay.wifiPassword)
                 .put("rules", new JSONArray(stay.rules))
@@ -369,7 +392,8 @@ final class HostServer {
         for (String k : new String[]{"place", "about", "wifi_name", "wifi_password", "checkin", "checkout", "door_code"}) {
             if (b.has(k)) s.put(k, b.optString(k, "").trim());
         }
-        for (String k : new String[]{"rules", "apps"}) if (b.has(k) && b.optJSONArray(k) != null) s.put(k, b.optJSONArray(k));
+        for (String k : new String[]{"rules", "apps", "kids_apps"}) if (b.has(k) && b.optJSONArray(k) != null) s.put(k, b.optJSONArray(k));
+        if (b.has("kids_name")) s.put("kids_name", b.optString("kids_name", "").trim());
         if (b.has("guest")) {
             JSONObject g = b.optJSONObject("guest");
             if (g == null || g.optString("names").trim().isEmpty()) s.remove("guest");
@@ -381,9 +405,28 @@ final class HostServer {
         if (!b.optString("ai_key", "").trim().isEmpty()) s.put("ai_key", b.optString("ai_key").trim());
         if (b.optBoolean("ai_key_clear")) s.remove("ai_key");
         if (b.has("guest_remote")) s.put("guest_remote", b.optBoolean("guest_remote"));
-        if (b.has("mode")) s.put("mode", "home".equals(b.optString("mode")) ? "home" : "guest");
+        if (b.has("mode")) {
+            String m = b.optString("mode");
+            s.put("mode", "home".equals(m) || "kids".equals(m) ? m : "guest");
+        }
         Stay.write(ctx, s);
         changed();
+    }
+
+    /** A show from a search goes on the Kids screen: its picture and the link the search found (Watch). */
+    private JSONObject kidsAdd(JSONObject b) throws Exception {
+        String[] link = Watch.link(b.optString("id"));
+        if (link == null) return new JSONObject().put("error", "Search again, then add it.");
+        JSONObject s = Stay.json(ctx);
+        JSONArray shows = s.optJSONArray("kids_shows");
+        if (shows == null) shows = new JSONArray();
+        if (shows.length() >= 24) return new JSONObject().put("error", "Kids mode holds 24 shows. Remove one first.");
+        shows.put(new JSONObject().put("title", b.optString("title")).put("poster", b.optString("poster"))
+                .put("pkg", link[0]).put("link", link[1]));
+        s.put("kids_shows", shows);
+        Stay.write(ctx, s);
+        changed();
+        return new JSONObject().put("ok", true);
     }
 
     private void changed() {

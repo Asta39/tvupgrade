@@ -31,7 +31,7 @@ import java.util.List;
 final class Stay {
     static final String FILE_NAME = "stay.json";
 
-    final boolean guestMode;
+    final boolean guestMode, kids;
     final String place, about, wifiName, wifiPassword, doorCode, checkin, checkout;
     final List<String> rules, apps;
     /** The guest's names while a stay is on today, else empty. */
@@ -42,6 +42,7 @@ final class Stay {
 
     private Stay(JSONObject j) {
         guestMode = "guest".equals(j.optString("mode"));
+        kids = "kids".equals(j.optString("mode"));
         place = j.optString("place", "").trim();
         about = j.optString("about", "").trim();
         wifiName = j.optString("wifi_name", "").trim();
@@ -88,8 +89,14 @@ final class Stay {
         return new Stay(json(ctx));
     }
 
+    /** Guest or Kids mode: either way the welcome screen (GuestActivity) is Home. */
     static boolean guestMode(Context ctx) {
-        return "guest".equals(json(ctx).optString("mode"));
+        String m = json(ctx).optString("mode");
+        return "guest".equals(m) || "kids".equals(m);
+    }
+
+    static boolean kidsMode(Context ctx) {
+        return "kids".equals(json(ctx).optString("mode"));
     }
 
     /** Switches between Home and Guest mode, keeping everything else in stay.json. */

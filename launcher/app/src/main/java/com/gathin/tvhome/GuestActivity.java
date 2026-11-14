@@ -220,6 +220,17 @@ public class GuestActivity extends Activity {
     // ---- content ---------------------------------------------------------------------------------------
 
     private void fill() {
+        if (Stay.kidsMode(this)) {
+            fillKids();
+            return;
+        }
+        title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 34);
+        // Back from Kids mode, whose poster row is taller.
+        ViewGroup.LayoutParams ch = cards.getLayoutParams();
+        if (ch.height != px(112)) {
+            ch.height = px(112);
+            cards.setLayoutParams(ch);
+        }
         label.setText(stay.place.toUpperCase(Locale.getDefault()));
         label.setVisibility(stay.place.isEmpty() ? View.GONE : View.VISIBLE);
         if (stay.staying() && !stay.names.isEmpty()) {
@@ -323,6 +334,86 @@ public class GuestActivity extends Activity {
         return l;
     }
 
+    // ---- Kids mode ------------------------------------------------------------------------------------
+
+    /**
+     * Kids mode (this fork, after couch-tv's Kids mode): the shows a parent added from the phone, as big posters
+     * that open straight into the show, and only the kids' apps. Leaving needs the host PIN.
+     */
+    private void fillKids() {
+        JSONObject j = Stay.json(this);
+        String name = j.optString("kids_name", "").trim();
+        label.setVisibility(View.GONE);
+        title.setText(name.isEmpty() ? "What shall we watch?" : "Hi " + name + "! What shall we watch?");
+        title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 26);
+        org.json.JSONArray shows = j.optJSONArray("kids_shows");
+        subtitle.setText(shows == null || shows.length() == 0 ? "A grown-up can add shows from the phone." : "Pick a show");
+        cards.removeAllViews();
+        if (qrView != null) qrView = null;
+        if (shows != null) for (int i = 0; i < shows.length() && i < 6; i++) {
+            JSONObject show = shows.optJSONObject(i);
+            if (show != null) cards.addView(posterCard(show));
+        }
+        for (int i = 0; i < cards.getChildCount(); i++) {
+            LinearLayout.LayoutParams l = new LinearLayout.LayoutParams(px(100), -1);
+            l.rightMargin = px(14);
+            cards.getChildAt(i).setLayoutParams(l);
+        }
+        ViewGroup.LayoutParams cl = cards.getLayoutParams();
+        // Posters at 2:3, short enough that the greeting stays clear of the clock.
+        cl.height = px(shows == null || shows.length() == 0 ? 0 : 150);
+        cards.setLayoutParams(cl);
+        if (barScroll != null) {
+            barScroll.removeAllViews();
+            barScroll.addView(appBar());
+        }
+        // The first show, not the first app: appBar() asks for its first chip after a frame, so ask after that.
+        if (cards.getChildCount() > 0) {
+            View first = cards.getChildAt(0);
+            main.postDelayed(first::requestFocus, 50);
+        }
+    }
+
+    private List<String> kidsApps() {
+        List<String> out = new java.util.ArrayList<>();
+        org.json.JSONArray a = Stay.json(this).optJSONArray("kids_apps");
+        if (a != null) for (int i = 0; i < a.length(); i++) out.add(a.optString(i));
+        return out;
+    }
+
+    /** A show's poster, loaded from JustWatch's image server; OK opens the show in its app. */
+    private View posterCard(JSONObject show) {
+        FrostedLayout box = new FrostedLayout(this, 18, CARD_TINT);
+        ImageView img = new ImageView(this);
+        img.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        img.setClipToOutline(true);
+        img.setOutlineProvider(new android.view.ViewOutlineProvider() {
+            @Override
+            public void getOutline(View v, android.graphics.Outline o) {
+                o.setRoundRect(0, 0, v.getWidth(), v.getHeight(), px(18));
+            }
+        });
+        box.addView(img, new FrameLayout.LayoutParams(-1, -1));
+        TextView name = text(show.optString("title"), 14, Color.WHITE, R.string.font_medium);
+        name.setPadding(px(12), px(10), px(12), px(10));
+        name.setMaxLines(2);
+        name.setShadowLayer(8 * dp, 0, 0, 0xCC000000);
+        box.addView(name, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
+        String url = show.optString("poster");
+        if (url.startsWith("https://")) new Thread(() -> {
+            try (InputStream in = new URL(url).openStream()) {
+                Bitmap b = BitmapFactory.decodeStream(in);
+                main.post(() -> img.setImageBitmap(b));
+            } catch (Exception ignored) {
+            }
+        }, "kids-poster").start();
+        box.setFocusable(true);
+        box.setClickable(true);
+        box.setOnClickListener(v -> Watch.open(this, show.optString("pkg"), show.optString("link")));
+        box.setOnFocusChangeListener((v, f) -> v.animate().scaleX(f ? 1.08f : 1f).scaleY(f ? 1.08f : 1f).setDuration(160).start());
+        return box;
+    }
+
     private String greeting() {
         int h = LocalTime.now().getHour();
         return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
@@ -370,11 +461,12 @@ public class GuestActivity extends Activity {
         bar.setClipChildren(false);
         bar.setClipToPadding(false);
         bar.setPadding(px(6), px(6), px(6), px(6));
-        bar.addView(chip(null, "House guide", v -> showRules()));
+        boolean kids = Stay.kidsMode(this);
+        if (!kids) bar.addView(chip(null, "House guide", v -> showRules()));
         // Last on the row: the host's way out (Menu does the same), behind the PIN once the TV is locked.
         View hostChip = chip(null, "Host", v -> hostMenu());
         PackageManager pm = getPackageManager();
-        List<String> allowed = stay.apps;
+        List<String> allowed = kids ? kidsApps() : stay.apps;
         if (allowed.isEmpty()) for (Setup.App a : Setup.apps(this)) if (allowed.size() < 8) allowed.add(a.pkg);
         int shown = 0;
         for (String pkg : allowed) {
@@ -470,7 +562,8 @@ public class GuestActivity extends Activity {
     private void hostMenu() {
         JSONObject j = Stay.json(this);
         String pinHash = j.optString("pin_sha256", "");
-        if (j.optBoolean("locked") && !pinHash.isEmpty()) {
+        // Kids mode is always locked once there is a host PIN.
+        if ((j.optBoolean("locked") || Stay.kidsMode(this)) && !pinHash.isEmpty()) {
             android.widget.EditText pin = new android.widget.EditText(this);
             pin.setInputType(android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD);
             pin.setHint("Host PIN");
