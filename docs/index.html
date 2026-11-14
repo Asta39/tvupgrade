@@ -1,0 +1,473 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TV Upgrade</title>
+<meta name="description" content="An Apple TV–style home screen for Google TV. Download the latest APK straight to your TV.">
+<link rel="icon" href="https://raw.githubusercontent.com/Asta39/tvupgrade/main/screenshots/app-icon.png">
+<style>
+  :root {
+    --bg: #ffffff;
+    --alt: #f5f5f7;
+    --ink: #1d1d1f;
+    --muted: #6e6e73;
+    --line: rgba(0,0,0,.08);
+    --blue: #0071e3;
+    --radius: 1.75rem;
+    /* 16px on a laptop, ~23px on a 1080p TV, ~46px on 4K */
+    font-size: clamp(16px, min(1.2vw, 2.15vh), 46px);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font: 400 1rem/1.47 -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased; overflow-x: hidden;
+  }
+  a { color: inherit; text-decoration: none; }
+  img { display: block; max-width: 100%; }
+
+  nav {
+    position: sticky; top: 1rem; z-index: 10;
+    display: flex; align-items: center; justify-content: space-between; gap: 2.4rem;
+    width: max-content; max-width: calc(100vw - 32px);
+    margin: 1rem auto 0;
+    padding: .45rem .45rem .45rem 1rem;
+    border-radius: 999px;
+    background: rgba(255,255,255,.7);
+    backdrop-filter: saturate(180%) blur(24px); -webkit-backdrop-filter: saturate(180%) blur(24px);
+    box-shadow: 0 0 0 1px rgba(0,0,0,.06), 0 10px 30px -10px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.8);
+  }
+  .navlinks .pill { margin-left: .4rem; padding: .55rem 1.3rem !important; }
+  .navlinks a:not(.pill):hover { color: var(--ink); }
+  .brand { display: flex; align-items: center; gap: .6rem; font-weight: 600; font-size: 1.05rem; }
+  .brand img { width: 1.8rem; height: 1.8rem; border-radius: .45rem; }
+  .navlinks { display: flex; align-items: center; gap: 1.8rem; font-size: .9rem; color: var(--muted); }
+  .navlinks a { border-radius: 999px; padding: .3rem .2rem; }
+  .pill { background: var(--blue); color: #fff !important; padding: .4rem 1.1rem !important; font-weight: 500; }
+
+  .eyebrow { font-size: 1.35rem; font-weight: 600; color: var(--muted); margin-bottom: .6rem; }
+  .eyebrow.c { background: linear-gradient(90deg,#ff9500,#ff2d55,#af52de); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  h1, h2 { font-weight: 700; letter-spacing: -.035em; line-height: 1.04; }
+  h1 { font-size: 6rem; }
+  h2 { font-size: 4.6rem; }
+  h3 { font-size: 2rem; font-weight: 700; letter-spacing: -.02em; line-height: 1.1; }
+  .lead { font-size: 1.75rem; line-height: 1.35; color: var(--muted); font-weight: 500; letter-spacing: -.01em; max-width: 46rem; }
+  .lead b { color: var(--ink); font-weight: 600; }
+  .center { text-align: center; margin-left: auto; margin-right: auto; }
+
+  section { padding: 9rem 0 0; }
+  .wrap { width: min(92vw, 90rem); margin: 0 auto; }
+  .head { margin-bottom: 4rem; }
+  .head .lead { margin-top: 1.6rem; }
+  .alt { background: var(--alt); padding-bottom: 9rem; margin-top: 9rem; }
+
+  .bleed { width: 100vw; margin-top: 4rem; }
+  .bleed img { width: 100%; height: auto; }
+  .framed { width: min(94vw, 110rem); margin: 4rem auto 0; border-radius: 2.4rem; overflow: hidden; box-shadow: 0 40px 100px -40px rgba(0,0,0,.45); }
+  .framed img { width: 100%; }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: .6rem;
+    padding: 1.05rem 2.2rem; border-radius: 999px;
+    font-size: 1.3rem; font-weight: 600; outline: none;
+    background: var(--blue); color: #fff;
+    transition: transform .25s cubic-bezier(.2,.8,.2,1), box-shadow .25s;
+  }
+  .btn.ghost { background: transparent; color: var(--blue); padding-left: 1rem; padding-right: 1rem; }
+  .btn svg { width: 1.2em; height: 1.2em; }
+  .ctas { display: flex; gap: 1rem; align-items: center; justify-content: center; margin-top: 2.6rem; flex-wrap: wrap; }
+  .meta { color: var(--muted); font-size: 1rem; margin-top: 1.2rem; text-align: center; }
+  a:focus { outline: none; }
+  a:focus-visible, .btn:focus { transform: scale(1.07); box-shadow: 0 0 0 .3rem #fff, 0 0 0 .6rem var(--blue), 0 20px 40px -14px rgba(0,113,227,.6); }
+  .navlinks a:focus { box-shadow: 0 0 0 .2rem var(--blue); }
+
+  .hero { padding-top: 4.5rem; text-align: center; }
+  .hero .lead { margin: 1.8rem auto 0; }
+
+  .grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 1.4rem; }
+  .tile { background: #fff; border-radius: var(--radius); overflow: hidden; display: flex; flex-direction: column; }
+  .tile .txt { padding: 2.6rem 2.6rem 1.8rem; }
+  .tile .txt p { color: var(--muted); font-size: 1.15rem; margin-top: .7rem; line-height: 1.45; }
+  .tile .txt p b { color: var(--ink); font-weight: 600; }
+  .tile img { width: 100%; margin-top: auto; }
+  .tile.pad img { width: calc(100% - 3rem); margin: auto 1.5rem 1.5rem; border-radius: 1rem; }
+  .w6 { grid-column: span 6; } .w4 { grid-column: span 4; } .w3 { grid-column: span 3; } .w2 { grid-column: span 2; }
+  .tile.row { flex-direction: row; align-items: center; }
+  .tile.row .txt { flex: 0 0 34%; }
+  .tile.row img { flex: 1; width: 66%; margin: 1.5rem 1.5rem 1.5rem 0; border-radius: 1rem; }
+
+  .strip { display: flex; gap: 1.2rem; overflow-x: auto; padding: 0 4vw 1rem; margin-top: 4rem; scroll-snap-type: x mandatory; scrollbar-width: none; }
+  .strip::-webkit-scrollbar { display: none; }
+  .strip img { flex: 0 0 auto; width: 46vw; aspect-ratio: 16/9; object-fit: cover; border-radius: 1.4rem; scroll-snap-align: center; }
+
+  .dark { background: #000; color: #f5f5f7; padding: 9rem 0; margin-top: 9rem; }
+  .dark .lead { color: #a1a1a6; }
+  .dark .lead b { color: #f5f5f7; }
+  .dark .eyebrow { color: #ff453a; }
+
+  .phones { display: flex; justify-content: center; gap: 2.4rem; margin-top: 4rem; flex-wrap: wrap; }
+  .phone { width: 17rem; border-radius: 2.6rem; padding: .55rem; background: #1d1d1f; box-shadow: 0 30px 60px -25px rgba(0,0,0,.45); }
+  .phone img { border-radius: 2.1rem; width: 100%; }
+  .cap { text-align: center; color: var(--muted); font-size: 1rem; margin-top: 1rem; }
+  figure { margin: 0; }
+
+  .feats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3rem 4rem; margin-top: 7rem; }
+  .feat .ic { display: block; font-size: 2.4rem; line-height: 1; margin-bottom: 1rem; }
+  .feat h4 { font-size: 1.35rem; letter-spacing: -.01em; }
+  .feat p { color: var(--muted); margin-top: .6rem; font-size: 1.1rem; line-height: 1.55; }
+
+  .ba { display: grid; grid-template-columns: 1fr 1fr; gap: 1.4rem; margin-top: 4rem; }
+  .ba img { border-radius: 1.4rem; width: 100%; aspect-ratio: 16/9; object-fit: cover; }
+  .ba .cap b { color: var(--ink); }
+
+  .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.4rem; margin-top: 4rem; }
+  .step img { border-radius: 1.2rem; aspect-ratio: 16/9; object-fit: cover; width: 100%; }
+  .step h4 { font-size: 1.3rem; margin-top: 1.2rem; }
+  .step h4 span { color: var(--blue); margin-right: .4rem; }
+  .step p { color: var(--muted); font-size: 1.05rem; margin-top: .3rem; }
+
+  .final { text-align: center; padding: 10rem 0 8rem; }
+  .final .icon { width: 8rem; height: 8rem; border-radius: 1.8rem; margin: 0 auto 2.4rem; box-shadow: 0 20px 50px -20px rgba(0,0,0,.4); }
+  .notes { max-width: 50rem; margin: 3.5rem auto 0; text-align: left; background: var(--alt); border-radius: var(--radius); padding: 2.2rem 2.6rem; }
+  .notes h4 { font-size: 1.2rem; display: flex; justify-content: space-between; gap: 1rem; }
+  .notes h4 span { color: var(--muted); font-weight: 400; }
+  .notes .body { color: var(--muted); margin-top: .8rem; white-space: pre-line; max-height: 16rem; overflow: auto; font-size: 1.05rem; }
+  .log { padding: 8rem 0 9rem; background: var(--alt); }
+  .rel { display: grid; grid-template-columns: 16rem 1fr; gap: 2.4rem; padding: 3rem 0; border-top: 1px solid var(--line); max-width: 70rem; margin: 0 auto; }
+  .rel:first-child { border-top: 0; }
+  .rel .ver { font-size: 2rem; font-weight: 700; letter-spacing: -.02em; }
+  .rel .when { color: var(--muted); margin-top: .3rem; }
+  .rel .tag { display: inline-block; margin-top: .8rem; font-size: .8rem; font-weight: 600; color: #fff; background: #30d158; border-radius: 999px; padding: .2rem .7rem; }
+  .rel .body { color: var(--muted); font-size: 1.1rem; line-height: 1.55; }
+  .rel .body h5 { color: var(--ink); font-size: 1.2rem; margin: 1.2rem 0 .4rem; }
+  .rel .body h5:first-child { margin-top: 0; }
+  .rel .body ul { padding-left: 1.2rem; }
+  .rel .body li { margin: .3rem 0; }
+  .rel .body b { color: var(--ink); }
+  .get { display: inline-block; margin-top: 1rem; color: var(--blue); font-weight: 600; border-radius: 999px; padding: .2rem .4rem; margin-left: -.4rem; }
+  @media (max-width: 820px) { .rel { grid-template-columns: 1fr; gap: 1rem; padding: 2rem 0; } .log { padding: 5rem 0; } }
+  footer { border-top: 1px solid var(--line); color: var(--muted); font-size: .85rem; padding: 2rem 4vw 3rem; display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+
+  .rv { opacity: 0; transform: translateY(2.5rem); transition: opacity .9s cubic-bezier(.2,.8,.2,1), transform .9s cubic-bezier(.2,.8,.2,1); }
+  .rv.in { opacity: 1; transform: none; }
+  @media (prefers-reduced-motion: reduce) { .rv { opacity: 1; transform: none; transition: none; } html { scroll-behavior: auto; } }
+
+  /* any landscape TV-shaped screen: never smaller than 18px, readable from the sofa */
+  @media (min-width: 900px) and (min-aspect-ratio: 16/10) {
+    :root { font-size: clamp(18px, min(1.25vw, 2.2vh), 46px); }
+  }
+  /* tablets, small laptops, 720p TV browsers in portrait-ish windows */
+  @media (max-width: 1199px) {
+    .grid { grid-template-columns: 1fr 1fr; }
+    .w6, .w4 { grid-column: span 2; } .w3, .w2 { grid-column: span 1; }
+    .feats { grid-template-columns: 1fr 1fr; }
+    .steps { grid-template-columns: 1fr 1fr; gap: 2.4rem 1.4rem; }
+    .strip img { width: 62vw; }
+    h1 { font-size: 5rem; } h2 { font-size: 3.8rem; }
+  }
+  /* big TVs: keep line lengths comfortable and phones big enough to read from the sofa */
+  @media (min-width: 1600px) {
+    .phone { width: 19rem; }
+    .strip img { width: 42vw; }
+  }
+  /* short, wide screens (720p TVs, TV browsers with overscan) */
+  @media (min-aspect-ratio: 16/10) and (max-height: 800px) {
+    section { padding-top: 6rem; } .alt { margin-top: 6rem; padding-bottom: 6rem; } .dark { padding: 6rem 0; }
+    h1 { font-size: 5rem; }
+  }
+  @media (max-width: 820px) {
+    :root { font-size: 16px; }
+    nav, .strip { padding-left: 16px; padding-right: 16px; }
+    .wrap { width: calc(100vw - 32px); }
+    .navlinks a:not(.pill) { display: none; }
+    h1 { font-size: 3.2rem; } h2 { font-size: 2.6rem; } h3 { font-size: 1.5rem; }
+    .lead { font-size: 1.2rem; }
+    section { padding-top: 5rem; } .alt, .dark { margin-top: 5rem; padding-bottom: 5rem; } .dark { padding-top: 5rem !important; }
+    .grid { grid-template-columns: 1fr; } .w6, .w4, .w3, .w2 { grid-column: auto; }
+    .tile.row { flex-direction: column; } .tile.row .txt { flex: none; } .tile.row img { width: calc(100% - 3rem); margin: 0 1.5rem 1.5rem; }
+    .tile .txt { padding: 1.8rem 1.6rem 1.2rem; }
+    .strip img { width: 80vw; }
+    .feats, .steps, .ba { grid-template-columns: 1fr; gap: 2rem; }
+    .feats { margin-top: 4rem; }
+    .phone { width: 13rem; }
+    .framed { border-radius: 1.2rem; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="brand" href="#top" tabindex="-1"><img data-s="app-icon.png" alt="">TV Upgrade</a>
+  <div class="navlinks">
+    <a href="#clock">Design</a>
+    <a href="#standby">StandBy</a>
+    <a href="#guest">Guest mode</a>
+    <a href="#install">Install</a>
+    <a href="#changelog">Changelog</a>
+    <a class="pill dl" href="https://github.com/Asta39/tvupgrade/releases/latest">Download</a>
+  </div>
+</nav>
+
+<section class="hero" id="top">
+  <div class="wrap">
+    <p class="eyebrow c rv">For Google TV and Android TV</p>
+    <h1 class="rv">Home, reimagined.</h1>
+    <p class="lead rv"><b>A liquid-glass clock. StandBy with synced lyrics. Guest mode that turns every phone into the remote.</b> And nothing you didn’t ask for.</p>
+    <div class="ctas rv">
+      <a class="btn dl" id="dl" href="https://github.com/Asta39/tvupgrade/releases/latest">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12m0 0-5-5m5 5 5-5M5 20h14"/></svg>
+        <span class="dlLabel">Download</span>
+      </a>
+      <a class="btn ghost" href="#clock">Take the tour ›</a>
+    </div>
+    <p class="meta rv dlMeta">Checking for the latest release…</p>
+  </div>
+  <div class="framed rv"><img data-s="home-3.jpg" alt="TV Upgrade home screen over a golden mountain peak"></div>
+</section>
+
+<section id="clock">
+  <div class="wrap head center">
+    <p class="eyebrow rv">Liquid glass clock</p>
+    <h2 class="rv">Time you can<br>see through.</h2>
+    <p class="lead center rv">Tall condensed digits, stretched like the iPhone lock screen, work as <b>clear lenses over the wallpaper.</b> The picture bends at every edge, light splits into red and blue like real glass, and the mountain still stands in front of the time.</p>
+  </div>
+  <div class="bleed rv"><img data-s="glass-clock.jpg" alt="Glass clock over the golden peak"></div>
+</section>
+
+<section>
+  <div class="wrap head center">
+    <p class="eyebrow rv">Nine 4K wallpapers</p>
+    <h2 class="rv">One button.<br>A whole new view.</h2>
+    <p class="lead center rv">Forests, lakes, tea hills, sunsets. <b>Press CH+ to change scenery.</b> Every one has its own depth cut-out, so the landscape always wraps around the clock.</p>
+  </div>
+  <div class="strip rv">
+    <img data-s="home-1.jpg" alt="Forest rays"><img data-s="home-2.jpg" alt="Misty pines"><img data-s="glass-clock-forest.jpg" alt="Fog forest"><img data-s="home-5.jpg" alt="Green lake"><img data-s="home-6.jpg" alt="Tea hills"><img data-s="home-7.jpg" alt="Flower sunset"><img data-s="home-8.jpg" alt="Dark fern"><img data-s="home-9.jpg" alt="Fern canopy">
+  </div>
+</section>
+
+<section class="alt">
+  <div class="wrap">
+    <div class="head center">
+      <p class="eyebrow rv">Everything in its place</p>
+      <h2 class="rv">Small touches.<br>Big difference.</h2>
+    </div>
+    <div class="grid">
+      <div class="tile w6 row rv">
+        <div class="txt"><h3>Now Playing</h3><p>While music plays, a frosted mini player sits between the clock and the dock. <b>Press Up</b> and it lights up: OK to pause, Left and Right to skip.</p></div>
+        <img data-s="now-playing-focus.jpg" alt="Now Playing, focused">
+      </div>
+      <div class="tile w3 pad rv">
+        <div class="txt"><h3>Control Center</h3><p>Press the gear or the remote’s Menu key. A frosted panel slides in with everything you reach for.</p></div>
+        <img data-s="control-center.jpg" alt="Control Center">
+      </div>
+      <div class="tile w3 pad rv">
+        <div class="txt"><h3>Night Shift</h3><p>Warms <b>everything on screen</b>, every app and every HDMI input included.</p></div>
+        <img data-s="night-shift.jpg" alt="Night Shift">
+      </div>
+      <div class="tile w3 pad rv">
+        <div class="txt"><h3>A home for everyone</h3><p>Up to four profiles, each with <b>their own dock, wallpapers and 3D avatar.</b> Switch in Control Center.</p></div>
+        <img data-s="profile-bond.jpg" alt="A second profile's home screen">
+      </div>
+      <div class="tile w3 pad rv">
+        <div class="txt"><h3>Weather</h3><p>Now, the next six hours and five days ahead, <b>Apple Weather style.</b></p></div>
+        <img data-s="weather.jpg" alt="Weather card">
+      </div>
+      <div class="tile w6 row rv">
+        <div class="txt"><h3>All your apps</h3><p>Your favourite eight live in the dock. <b>Press Down</b> for everything else, in clean iOS-style icons.</p></div>
+        <img data-s="all-apps.jpg" alt="All apps">
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="dark" id="standby" style="margin-top:0">
+  <div class="wrap head center">
+    <p class="eyebrow rv">StandBy</p>
+    <h2 class="rv">When you’re not watching,<br>it’s still beautiful.</h2>
+    <p class="lead center rv">Six faces on black: huge digits, an analog clock, a calendar, Solar, Float and Now Playing. <b>After 10 minutes idle, StandBy becomes your screensaver,</b> and from 10 pm it turns a dim night red.</p>
+  </div>
+  <div class="bleed rv"><img data-s="standby.jpg" alt="StandBy faces"></div>
+  <div class="bleed rv" style="margin-top:1.4rem"><img data-s="standby-solar-float.jpg" alt="Solar and Float faces"></div>
+  <div class="wrap head center" style="margin-top:9rem">
+    <h2 class="rv">Sing along.<br>Line by line.</h2>
+    <p class="lead center rv">Play a song and StandBy shows <b>time-synced lyrics</b> that glide like Apple Music, lit in the album’s most vivid colour. Big artwork, a progress bar and this week’s calendar alongside.</p>
+  </div>
+  <div class="framed rv" style="box-shadow:none"><img data-s="standby-lyrics.jpg" alt="Now Playing with synced lyrics"></div>
+</section>
+
+<section id="guest">
+  <div class="wrap head center">
+    <p class="eyebrow c rv">Guest mode</p>
+    <h2 class="rv">A TV that welcomes<br>your guests by name.</h2>
+    <p class="lead center rv">Switch to Guest mode and the TV greets the people staying, with the Wi-Fi, the weather and only the apps you allow. <b>They scan the code, and their phone becomes the remote.</b> No app, no account, no cloud.</p>
+  </div>
+  <div class="framed rv"><img data-s="guest-mode.jpg" alt="Guest mode welcome screen"></div>
+
+  <div class="wrap">
+    <div class="phones">
+      <figure class="rv"><div class="phone"><img data-s="phone-home.jpg" alt="Phone dashboard"></div><figcaption class="cap">Your stay, at a glance</figcaption></figure>
+      <figure class="rv"><div class="phone"><img data-s="phone-together.jpg" alt="Watch together"></div><figcaption class="cap">Swipe to pick a film</figcaption></figure>
+      <figure class="rv"><div class="phone"><img data-s="phone-music.jpg" alt="Music queue"></div><figcaption class="cap">One queue for the room</figcaption></figure>
+    </div>
+  </div>
+
+  <div class="wrap head center" style="margin-top:9rem">
+    <h2 class="rv">It’s a match.</h2>
+    <p class="lead center rv">Can’t agree what to watch? Everyone swipes the same deck on their own phone. <b>When the whole room likes the same title, the TV says so,</b> with a Play button.</p>
+  </div>
+  <div class="framed rv"><img data-s="tv-match.jpg" alt="It's a match on the TV"></div>
+
+  <div class="wrap">
+    <div class="feats">
+      <div class="feat rv"><div class="ic">🔑</div><h4>Door code and Wi-Fi</h4><p>Everything a guest asks on day one is already on their phone: the door code, the dates of the stay and the Wi-Fi password with a Copy button. On the last day a countdown shows how long is left until check-out, so nobody has to message you to ask.</p></div>
+      <div class="feat rv"><div class="ic">🎶</div><h4>Fair music queue</h4><p>Guests search songs on their phones and add them to one shared queue that plays on the TV. Songs take turns between phones, with at most six waiting each, so one person can’t take over the night. Anyone can skip, but you can only remove your own songs. No keys and no accounts.</p></div>
+      <div class="feat rv"><div class="ic">✨</div><h4>Arrival show</h4><p>The first time a guest’s phone opens the page on check-in day, the TV plays a short welcome over your place’s own photos: their names, the Wi-Fi with a code to join from the camera, a tour of the house rules and how the phone works as a remote. It plays once per stay, and you can preview or switch it off in Host settings.</p></div>
+      <div class="feat rv"><div class="ic">🌤️</div><h4>Weather by the hour</h4><p>The phone shows the next six hours with the chance of rain, so guests know whether to take an umbrella. Around it sit sunrise or sunset on a little sun arc, and three ideas for the evening nearby when you add your own AI key.</p></div>
+      <div class="feat rv"><div class="ic">🍿</div><h4>Popular on your TV</h4><p>Posters of what’s trending right now, picked only from the streaming apps this TV actually has. Tap one on the phone and it starts playing on the TV. <i>Up next</i> picks up whatever guests were watching, one tap to resume.</p></div>
+      <div class="feat rv"><div class="ic">▶️</div><h4>TizenTube built in</h4><p>Wherever the launcher opens YouTube, from search, posters, matches or the music queue, it uses TizenTube when it’s installed and falls back to the original YouTube app when it isn’t. Your guests get the ad-free version without having to know it exists.</p></div>
+    </div>
+  </div>
+  </div>
+</section>
+
+<section class="alt">
+  <div class="wrap">
+    <div class="head center">
+      <p class="eyebrow rv">Debloated</p>
+      <h2 class="rv">Less clutter. No ads.<br>Fully undoable.</h2>
+      <p class="lead center rv">Sponsored rows, promos and trackers switched off, <b>never uninstalled.</b> No root, no flashing. One script puts everything back.</p>
+    </div>
+    <div class="ba">
+      <figure class="rv"><img data-s="before.jpg" alt="Stock Google TV"><figcaption class="cap"><b>Before</b> · stock Google TV</figcaption></figure>
+      <figure class="rv"><img data-s="home-4.jpg" alt="TV Upgrade"><figcaption class="cap"><b>After</b> · TV Upgrade</figcaption></figure>
+    </div>
+  </div>
+</section>
+
+<section id="install">
+  <div class="wrap">
+    <div class="head center">
+      <p class="eyebrow rv">Set up in minutes</p>
+      <h2 class="rv">No computer needed.</h2>
+      <p class="lead center rv">Download right here on your TV. A short welcome walks you through the rest.</p>
+    </div>
+    <div class="steps">
+      <div class="step rv"><img data-s="setup-welcome.jpg" alt=""><h4><span>1</span>Download</h4><p>Press Download below. Allow this browser to install apps when the TV asks.</p></div>
+      <div class="step rv"><img data-s="setup-apps.jpg" alt=""><h4><span>2</span>Pick your apps</h4><p>Up to eight for the dock, and up to four people.</p></div>
+      <div class="step rv"><img data-s="setup-debugging.jpg" alt=""><h4><span>3</span>Connect</h4><p>Turn on debugging and it sets up the Home button for you. Optional.</p></div>
+      <div class="step rv"><img data-s="setup-cleanup.jpg" alt=""><h4><span>4</span>Clean up</h4><p>Turn off the clutter on tested TVs. Everything can be undone.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="final">
+  <div class="wrap">
+    <img class="icon rv" data-s="app-icon.png" alt="">
+    <h2 class="rv">Get TV Upgrade.</h2>
+    <p class="lead center rv" style="margin-top:1.4rem">Free and open source.</p>
+    <div class="ctas rv">
+      <a class="btn dl" href="https://github.com/Asta39/tvupgrade/releases/latest">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12m0 0-5-5m5 5 5-5M5 20h14"/></svg>
+        <span class="dlLabel">Download</span>
+      </a>
+      <a class="btn ghost" href="https://github.com/Asta39/tvupgrade">View on GitHub ›</a>
+    </div>
+    <p class="meta dlMeta"></p>
+  </div>
+</section>
+
+<section class="log" id="changelog">
+  <div class="wrap">
+    <div class="head center">
+      <p class="eyebrow">Changelog</p>
+      <h2>What’s new.</h2>
+    </div>
+    <div id="releases"><p class="meta">Loading releases…</p></div>
+  </div>
+</section>
+
+<footer><span>TV Upgrade · open source on GitHub</span><span>Not affiliated with Apple or Google.</span></footer>
+
+<script>
+  var REPO = 'Asta39/tvupgrade';
+  var RAW = 'https://raw.githubusercontent.com/' + REPO + '/main/screenshots/';
+  function $$(s) { return [].slice.call(document.querySelectorAll(s)); }
+
+  $$('img[data-s]').forEach(function (im) { im.loading = 'lazy'; im.src = RAW + im.getAttribute('data-s'); });
+
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function (es) {
+      es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+    }, { rootMargin: '0px 0px -8% 0px' });
+    $$('.rv').forEach(function (el) { io.observe(el); });
+  } else { $$('.rv').forEach(function (el) { el.classList.add('in'); }); }
+
+  function mb(b) { return (b / 1048576).toFixed(1) + ' MB'; }
+  fetch('https://api.github.com/repos/' + REPO + '/releases/latest')
+    .then(function (r) { if (!r.ok) throw r; return r.json(); })
+    .then(function (rel) {
+      var apk = (rel.assets || []).filter(function (a) { return /\.apk$/i.test(a.name); })[0];
+      var date = new Date(rel.published_at).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' });
+      var meta = rel.tag_name + (apk ? ' · ' + mb(apk.size) : '') + ' · released ' + date;
+      if (apk) $$('a.dl').forEach(function (a) { a.href = apk.browser_download_url; });
+      $$('.dlLabel').forEach(function (s) { s.textContent = 'Download ' + rel.tag_name; });
+      $$('.dlMeta').forEach(function (p) { p.textContent = meta; });
+    })
+    .catch(function () { $$('.dlMeta').forEach(function (p) { p.textContent = 'Opens the latest release on GitHub.'; }); });
+
+  // changelog: every release
+  function esc(t) { return t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  function md(t) {
+    var out = [], list = false;
+    esc(t || '').split(/\r?\n/).forEach(function (l) {
+      l = l.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/`([^`]+)`/g, '<b>$1</b>').replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+      var li = l.match(/^\s*[-*]\s+(.*)/), h = l.match(/^#+\s+(.*)/);
+      if (!li && list) { out.push('</ul>'); list = false; }
+      if (li) { if (!list) { out.push('<ul>'); list = true; } out.push('<li>' + li[1] + '</li>'); }
+      else if (h) out.push('<h5>' + h[1] + '</h5>');
+      else if (l.trim()) out.push('<p>' + l + '</p>');
+    });
+    if (list) out.push('</ul>');
+    return out.join('') || '<p>No notes for this release.</p>';
+  }
+  fetch('https://api.github.com/repos/' + REPO + '/releases?per_page=100')
+    .then(function (r) { if (!r.ok) throw r; return r.json(); })
+    .then(function (list) {
+      list = list.filter(function (r) { return !r.draft; });
+      document.getElementById('releases').innerHTML = list.map(function (rel, n) {
+        var apk = (rel.assets || []).filter(function (a) { return /\.apk$/i.test(a.name); })[0];
+        var date = new Date(rel.published_at).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' });
+        return '<article class="rel"><div><div class="ver">' + esc(rel.tag_name) + '</div><div class="when">' + date + '</div>' +
+          (n === 0 ? '<span class="tag">Latest</span>' : '') + '</div><div class="body">' + md(rel.body) +
+          (apk ? '<a class="get" href="' + apk.browser_download_url + '">Download ' + esc(rel.tag_name) + ' ›</a>' : '') + '</div></article>';
+      }).join('') || '<p class="meta">No releases yet.</p>';
+    })
+    .catch(function () {
+      document.getElementById('releases').innerHTML = '<p class="meta">Couldn’t load releases. <a class="get" href="https://github.com/' + REPO + '/releases">See them on GitHub ›</a></p>';
+    });
+
+  // TV remote: Up/Down scroll the page, Left/Right move between buttons in view
+  document.addEventListener('keydown', function (e) {
+    var k = e.key, vh = innerHeight;
+    if (k === 'ArrowDown' || k === 'ArrowUp') {
+      e.preventDefault();
+      scrollBy({ top: (k === 'ArrowDown' ? 1 : -1) * vh * 0.7, behavior: 'smooth' });
+      setTimeout(function () {
+        var btn = $$('a.btn, a.get').filter(function (a) {
+          var r = a.getBoundingClientRect(); return r.top > vh * 0.1 && r.bottom < vh * 0.95;
+        })[0];
+        if (btn) btn.focus({ preventScroll: true });
+        else if (document.activeElement) document.activeElement.blur();
+      }, 450);
+    } else if (k === 'ArrowLeft' || k === 'ArrowRight') {
+      var f = $$('a[href]:not([tabindex="-1"])').filter(function (a) { var r = a.getBoundingClientRect(); return a.offsetParent && r.bottom > 0 && r.top < vh; });
+      var i = f.indexOf(document.activeElement), n = f[i + (k === 'ArrowRight' ? 1 : -1)] || f[0];
+      if (n) { e.preventDefault(); n.focus({ preventScroll: true }); }
+    }
+  });
+  addEventListener('load', function () { document.getElementById('dl').focus({ preventScroll: true }); });
+</script>
+</body>
+</html>
