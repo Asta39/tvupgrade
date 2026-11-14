@@ -132,8 +132,6 @@ Wi-Fi, the weather and only the apps you allow. Guests scan the QR code and **th
 companion**, served by the TV itself on the home Wi-Fi (port 8686): no app to install, no account, no cloud. The TV
 stays minimal; everything rich lives on the phone.
 
-![Guest mode welcome screen](screenshots/guest-mode.jpg)
-
 ### The phone's Home: a dashboard for the stay
 
 | | |
