@@ -172,8 +172,10 @@ remove your own songs. The first song opens StandBy with the lyrics.
 <img src="screenshots/phone-music.jpg" alt="Music: now playing, search and the shared queue" width="450">
 
 No keys and no accounts: search uses Apple's public iTunes song search, and songs play through **Bitchord**
-(YouTube Music) when the TV has it, else YouTube. Bitchord picks its best match for "song + artist", so now and
-then it plays a different version. Spotify's TV app was tried first; it accepts no play requests from other apps.
+(YouTube Music) when the TV has it, else YouTube. Each song is checked as it starts: if Bitchord picked another
+song, the TV switches to the exact one. The queue follows what's actually playing, and when Bitchord tries to slip
+in its own pick between songs, it's paused at once and the next song in the queue starts. Spotify's TV app was
+tried first; it accepts no play requests from other apps.
 
 ### The arrival show
 

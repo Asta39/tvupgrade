@@ -156,7 +156,11 @@ soft-edged clipped sweep drawn every frame (`postOnAnimation`), never by re-layi
   TizenTube (`io.gh.reisxd.tizentube.cobalt`) when installed, else the original YouTube (`com.google.android.youtube.tv`).
   Don't hard-code either package.
 - Party mode's music player: Bitchord (`com.music.bitchord.tv`) when installed, asked through its media session
-  (it ignores links and play-from-search intents); else YouTube as above, opened on the song's video. Spotify's TV
+  (it ignores links and play-from-search intents): `playFromSearch` first (full title/art/lyrics), checked by title
+  and lead artist; on a mismatch `playFromMediaId(<YouTube video id>)` plays the exact song. The video id comes
+  from youtube.com/results with a **desktop** User-Agent (the mobile page escapes its JSON and hides the ids).
+  Track the queue by what the player does (first new non-empty title after asking), not by title matching, and
+  pause the player's own autoplay pick the moment it appears. Else YouTube as above, opened on the song's video. Spotify's TV
   app takes no play requests from other apps (tested 2026-11-14), so don't route music to it.
 - New look options go behind a new theme key in `Config.java` that defaults to off, read in `Config.load`, reset
   at its start.

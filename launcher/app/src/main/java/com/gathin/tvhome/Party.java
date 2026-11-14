@@ -204,9 +204,18 @@ final class Party {
     }
 
     // ---- playing -------------------------------------------------------------------------------------------
+    // The queue follows what the player actually does, not titles: the first new item the player plays after we ask
+    // is "ours" (whichever version it picked), and the moment it moves past that item, the next song in the queue
+    // starts. A second before a song ends we start the next one ourselves, so the player's own autoplay never cuts in.
+
+    /** Counts every start, so a slow start thread for a skipped song can't play over the next one. */
+    private static int generation;
+    /** The player's title when we asked, and the title it then played: our song, in the version it chose. */
+    private static String titleBefore, startedTitle;
 
     private static void next(Context ctx) {
         JSONObject t;
+        int gen;
         synchronized (LOCK) {
             if (queue.isEmpty()) {
                 now = null;
@@ -222,20 +231,27 @@ final class Party {
             now = t;
             startedAt = System.currentTimeMillis();
             seen = false;
+            startedTitle = null;
+            MediaController c = current(ctx);
+            titleBefore = c == null ? null : titleOf(c);
+            gen = ++generation;
         }
-        new Thread(() -> play(ctx, t.optString("title"), t.optString("artist")), "party-play").start();
+        new Thread(() -> play(ctx, t, gen), "party-play").start();
     }
 
     /**
-     * Starts a song on the room's player (player()): Bitchord through its media session with the song's YouTube Music
-     * link (it ignores links sent as intents), else TizenTube or YouTube opened on the song's video.
+     * Starts a song on the room's player: Bitchord through its media session with the song's exact YouTube Music
+     * link (it ignores links sent as intents), falling back to a search if the link doesn't start; else TizenTube or
+     * YouTube opened on the song's video.
      */
-    private static void play(Context ctx, String title, String artist) {
+    private static void play(Context ctx, JSONObject t, int gen) {
         String player = player(ctx);
         if (player == null) return;
+        String title = t.optString("title"), artist = t.optString("artist");
         String id = videoId(title + " " + artist);
+        if (gen != generation) return;
         if (BITCHORD.equals(player)) {
-            playOnSession(ctx, player, id, title, artist);
+            playOnSession(ctx, player, id, title, artist, gen);
             return;
         }
         if (id == null) {
@@ -253,20 +269,16 @@ final class Party {
         });
     }
 
-    /** Bitchord: open it if it has no session yet, then ask its session for the link (or, without one, by search). */
-    private static void playOnSession(Context ctx, String pkg, String id, String title, String artist) {
+    /** Bitchord: open it if it has no session yet, then ask its session for the exact link; search if that fails. */
+    private static void playOnSession(Context ctx, String pkg, String id, String title, String artist, int gen) {
         Bundle extras = new Bundle();
         extras.putString(MediaStore.EXTRA_MEDIA_FOCUS, "vnd.android.cursor.item/audio");
         extras.putString(MediaStore.EXTRA_MEDIA_TITLE, title);
         extras.putString(MediaStore.EXTRA_MEDIA_ARTIST, artist);
-        for (int i = 0; i < 6; i++) {
-            MediaController c = session(ctx, pkg);
-            if (c != null) {
-                android.util.Log.i("Party", "asking " + pkg + " for " + (id == null ? "search" : id));
-                if (id != null) c.getTransportControls().playFromUri(android.net.Uri.parse("https://music.youtube.com/watch?v=" + id), extras);
-                else c.getTransportControls().playFromSearch(title + " " + artist, extras);
-                return;
-            }
+        MediaController c = null;
+        for (int i = 0; i < 6 && c == null; i++) {
+            c = session(ctx, pkg);
+            if (c != null) break;
             if (i == 0) {
                 Intent app = ctx.getPackageManager().getLeanbackLaunchIntentForPackage(pkg);
                 if (app == null) app = ctx.getPackageManager().getLaunchIntentForPackage(pkg);
@@ -275,21 +287,84 @@ final class Party {
                     new Handler(Looper.getMainLooper()).post(() -> ctx.startActivity(go));
                 }
             }
-            try {
-                Thread.sleep(1500);
-            } catch (InterruptedException e) {
-                return;
+            if (!sleep(1500)) return;
+        }
+        if (c == null || gen != generation) return;
+        // A search plays with the song's real title, artist and art (StandBy shows them, with the lyrics), but now and
+        // then picks another song ("Roommate" for "Roommates"). So: search, check what started, and if it's not ours,
+        // play the exact video by its id (Bitchord's media ids are YouTube video ids), which shows no details.
+        android.util.Log.i("Party", "searching " + pkg + " for " + title + " / " + artist);
+        c.getTransportControls().playFromSearch(title + " " + artist, extras);
+        if (started(gen, 10_000)) {
+            MediaController got = session(ctx, pkg);
+            if (got == null || right(got, title, artist)) return;
+            android.util.Log.i("Party", "search played " + titleOf(got) + "; switching to the exact video");
+        }
+        if (id == null || gen != generation) return;
+        synchronized (LOCK) {
+            seen = false;
+            startedTitle = null;
+            MediaController before = session(ctx, pkg);
+            titleBefore = before == null ? null : titleOf(before);
+            startedAt = System.currentTimeMillis();
+        }
+        android.util.Log.i("Party", "asking " + pkg + " for media id " + id + " (" + title + ")");
+        c.getTransportControls().playFromMediaId(id, extras);
+    }
+
+    /** Whether the player's song is this one: its title and its lead artist both appear in what the player shows. */
+    private static boolean right(MediaController c, String title, String artist) {
+        if (c.getMetadata() == null) return false;
+        String t = titleOf(c), a = c.getMetadata().getString(MediaMetadata.METADATA_KEY_ARTIST);
+        if (t == null) return false;
+        String lead = plain(artist.split(",|&| feat\\.| x ")[0]);
+        String shownTitle = t.toLowerCase(Locale.ROOT).replaceAll("[^\\p{L}\\p{N}]+", "");
+        String shownArtist = (a == null ? "" : a + " ") + t;
+        shownArtist = shownArtist.toLowerCase(Locale.ROOT).replaceAll("[^\\p{L}\\p{N}]+", "");
+        String mine = plain(title);
+        // "Roommate" must not pass for "Roommates": the title must match whole, not as a piece of a longer one.
+        boolean titleOk = shownTitle.equals(mine) || shownTitle.startsWith(mine) && !Character.isLetter(firstAfter(t, title));
+        return titleOk && (lead.isEmpty() || shownArtist.contains(lead));
+    }
+
+    /** The character in the shown title right after the song's own title, or a space when there is none. */
+    private static char firstAfter(String shown, String title) {
+        String core = title.replaceAll("\\s*[(\\[].*?[)\\]]", "").trim().toLowerCase(Locale.ROOT);
+        int at = shown.toLowerCase(Locale.ROOT).indexOf(core);
+        int after = at < 0 ? -1 : at + core.length();
+        return after < 0 || after >= shown.length() ? ' ' : shown.charAt(after);
+    }
+
+    /** Waits up to ms for tick() to see our song start; false if it didn't, or a newer start took over. */
+    private static boolean started(int gen, long ms) {
+        for (long waited = 0; waited < ms; waited += 500) {
+            if (!sleep(500) || gen != generation) return false;
+            synchronized (LOCK) {
+                if (seen) return true;
             }
+        }
+        return false;
+    }
+
+    private static boolean sleep(long ms) {
+        try {
+            Thread.sleep(ms);
+            return true;
+        } catch (InterruptedException e) {
+            return false;
         }
     }
 
-    /** The first YouTube video for a song, read from YouTube's own search page (no key); null when none is found. */
+    /**
+     * The first YouTube video for a song, read from YouTube's own search page (no key); null when none is found.
+     * A desktop browser's identity: the mobile page writes its data escaped (\x22videoId\x22), which hid every id.
+     */
     static String videoId(String query) {
         try {
             HttpURLConnection c = (HttpURLConnection) new URL("https://www.youtube.com/results?search_query=" + URLEncoder.encode(query, "UTF-8")).openConnection();
             c.setConnectTimeout(8000);
             c.setReadTimeout(15000);
-            c.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 Chrome/120 Safari/537.36");
+            c.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36");
             c.setRequestProperty("Accept-Language", "en");
             ByteArrayOutputStream b = new ByteArrayOutputStream();
             try (InputStream in = c.getInputStream()) {
@@ -297,8 +372,11 @@ final class Party {
                 int n;
                 while ((n = in.read(buf)) > 0) b.write(buf, 0, n);
             }
-            java.util.regex.Matcher m = java.util.regex.Pattern.compile("\"videoId\":\"([A-Za-z0-9_-]{11})\"").matcher(b.toString("UTF-8"));
-            return m.find() ? m.group(1) : null;
+            String page = b.toString("UTF-8");
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile("(?:\"|\\\\x22)videoId(?:\"|\\\\x22):(?:\"|\\\\x22)([A-Za-z0-9_-]{11})").matcher(page);
+            if (m.find()) return m.group(1);
+            android.util.Log.w("Party", "no video id in " + page.length() + " bytes for " + query);
+            return null;
         } catch (Exception e) {
             android.util.Log.w("Party", "video search", e);
             return null;
@@ -313,13 +391,14 @@ final class Party {
                 t.setDaemon(true);
                 return t;
             });
-            watch.scheduleWithFixedDelay(() -> tick(ctx.getApplicationContext()), 2, 2, TimeUnit.SECONDS);
+            watch.scheduleWithFixedDelay(() -> tick(ctx.getApplicationContext()), 1, 1, TimeUnit.SECONDS);
         }
     }
 
     /**
-     * Every two seconds while a song is on: once Spotify plays our song we know it started; when it moves to another
-     * song (its own autoplay) or is about to end, the next one in the queue starts.
+     * Every second while a song is on. Our song has started once the player plays something new after we asked (or
+     * matches the title, or anything at all after 20 seconds, so a odd version never stalls the queue). From then,
+     * the queue moves on when the player leaves that song, stops, or is 1.5 seconds from its end.
      */
     private static void tick(Context ctx) {
         try {
@@ -329,19 +408,42 @@ final class Party {
                 MediaController c = current(ctx);
                 if (c == null || c.getMetadata() == null) return;
                 PlaybackState st = c.getPlaybackState();
-                boolean ours = matches(c);
-                if (ours && !seen && st != null && st.getState() == PlaybackState.STATE_PLAYING) {
-                    seen = true;
-                    firstSeen = !standbyShown;
-                    standbyShown = true;
+                boolean playing = st != null && st.getState() == PlaybackState.STATE_PLAYING;
+                String title = titleOf(c);
+                if (!seen && playing && title != null) {
+                    // A new, non-empty title: an item with no details yet (loading) doesn't count as our song.
+                    boolean moved = !title.trim().isEmpty() && !title.equals(titleBefore);
+                    boolean waitedLong = System.currentTimeMillis() - startedAt > 20_000;
+                    if (moved || matches(c) || waitedLong) {
+                        seen = true;
+                        startedTitle = title;
+                        firstSeen = !standbyShown;
+                        standbyShown = true;
+                        android.util.Log.i("Party", "started: " + title + " for " + now.optString("title")
+                                + ", player length " + c.getMetadata().getLong(MediaMetadata.METADATA_KEY_DURATION) + " ms");
+                    }
                 }
-                if (seen && !ours) advance = true;
-                if (seen && ours && st != null && st.getState() == PlaybackState.STATE_PLAYING) {
+                // Left our song: a different title (an empty one is the player loading, not a new song).
+                if (seen && title != null && !title.trim().isEmpty() && !title.equals(startedTitle)) {
+                    advance = true;
+                    // The player has moved on to a song of its own (Bitchord trims the silence at the end, so it can
+                    // beat the early start below): hush it at once while the next song is fetched.
+                    if (playing && !queue.isEmpty()) c.getTransportControls().pause();
+                }
+                if (seen && playing) {
                     long dur = c.getMetadata().getLong(MediaMetadata.METADATA_KEY_DURATION);
                     long pos = st.getPosition() + (long) ((android.os.SystemClock.elapsedRealtime() - st.getLastPositionUpdateTime()) * st.getPlaybackSpeed());
-                    if (dur > 0 && pos >= dur - 1200 && !queue.isEmpty()) advance = true;
+                    if (dur > 0 && pos >= dur - 1500) advance = true;
                 }
-                if (seen && st != null && st.getState() == PlaybackState.STATE_STOPPED) advance = true;
+                if (seen && st != null && (st.getState() == PlaybackState.STATE_STOPPED || st.getState() == PlaybackState.STATE_NONE)) advance = true;
+                if (advance) {
+                    android.util.Log.i("Party", "moving on from " + startedTitle + " (player now: " + title + ")");
+                    // The queue is empty: let the player carry on; party mode has nothing more to play.
+                    if (queue.isEmpty()) {
+                        now = null;
+                        advance = false;
+                    }
+                }
             }
             if (firstSeen) lyrics(ctx);
             if (advance) next(ctx);
@@ -350,16 +452,20 @@ final class Party {
         }
     }
 
+    private static String titleOf(MediaController c) {
+        if (c.getMetadata() == null) return null;
+        String title = c.getMetadata().getString(MediaMetadata.METADATA_KEY_TITLE);
+        return title != null ? title : c.getMetadata().getString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE);
+    }
+
     /**
      * Whether the player's current item is the song the queue started. A video's title carries more ("Dua Lipa -
      * Levitating (Official Music Video)"), so the song's own title only has to appear in it.
      */
     private static boolean matches(MediaController c) {
         JSONObject n = now;
-        if (n == null || c.getMetadata() == null) return false;
-        String title = c.getMetadata().getString(MediaMetadata.METADATA_KEY_TITLE);
-        if (title == null) title = c.getMetadata().getString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE);
-        if (title == null) return false;
+        String title = titleOf(c);
+        if (n == null || title == null) return false;
         String mine = plain(n.optString("title")), theirs = title.toLowerCase(Locale.ROOT).replaceAll("[^\\p{L}\\p{N}]+", "");
         return !mine.isEmpty() && (theirs.contains(mine) || mine.contains(plain(title)));
     }
