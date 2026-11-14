@@ -235,6 +235,18 @@ final class HostServer {
                 JSONObject played = Watch.play(ctx, body.optString("id"));
                 json(out, 200, played);
                 return;
+            case "GET /api/accounts":
+                if (!host && !guestRemote()) break;
+                json(out, 200, accounts(host));
+                return;
+            case "POST /api/accounts/signin":
+                if (!host && !guestRemote()) break;
+                json(out, 200, signIn(body.optString("pkg"), host));
+                return;
+            case "POST /api/accounts/signout":
+                if (!host && !guestRemote()) break;
+                json(out, 200, signOut(body.optString("pkg", "")));
+                return;
             case "POST /api/kids/add":
                 if (!host) break;
                 json(out, 200, kidsAdd(body));
@@ -399,6 +411,7 @@ final class HostServer {
                 .put("arrive", stay.staying() ? stay.arrive.toString() : "")
                 .put("depart", stay.staying() ? stay.depart.toString() : "");
         o.put("apps", allowedApps());
+        o.put("signed_in", signedInLabels());
         return o;
     }
 
@@ -759,6 +772,97 @@ final class HostServer {
             }
         }
         return false;
+    }
+
+    // ---- signing in to streaming apps from the phone ----------------------------------------------------------
+    // The TV can't ask an app whether someone is signed in, so we remember the apps someone started signing in to
+    // from the phone ("signins" in stay.json). Signing out clears that app's data, the only way that works for every
+    // app: it signs out whoever is signed in to it, the host included.
+
+    private JSONObject accounts(boolean host) throws Exception {
+        java.util.Set<String> mine = signins();
+        java.util.Set<String> allowed = new java.util.HashSet<>();
+        JSONArray a = Stay.json(ctx).optJSONArray("apps");
+        if (a != null) for (int i = 0; i < a.length(); i++) allowed.add(a.optString(i));
+        PackageManager pm = ctx.getPackageManager();
+        JSONArray list = new JSONArray();
+        for (Map.Entry<String, String> e : Watch.SIGN_IN.entrySet()) {
+            String pkg = e.getKey();
+            if (!host && !allowed.contains(pkg)) continue;
+            try {
+                CharSequence label = pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0));
+                list.put(new JSONObject().put("pkg", pkg).put("label", label.toString()).put("url", e.getValue())
+                        .put("signed_in", mine.contains(pkg)));
+            } catch (PackageManager.NameNotFoundException notHere) {
+                // not on this TV
+            }
+        }
+        return new JSONObject().put("apps", list).put("can_sign_out", adbReady());
+    }
+
+    private JSONObject signIn(String pkg, boolean host) throws Exception {
+        if (!Watch.SIGN_IN.containsKey(pkg)) return new JSONObject().put("error", "That app can't sign in from the phone.");
+        JSONObject opened = remote(new JSONObject().put("app", pkg), host);
+        if (opened.has("error")) return opened;
+        JSONObject s = Stay.json(ctx);
+        java.util.Set<String> mine = signins();
+        mine.add(pkg);
+        s.put("signins", new JSONArray(mine));
+        Stay.write(ctx, s);
+        return new JSONObject().put("ok", true).put("url", Watch.SIGN_IN.get(pkg));
+    }
+
+    /** Signs out of one app, or of every app signed in from the phone when pkg is empty. */
+    private JSONObject signOut(String pkg) throws Exception {
+        java.util.Set<String> mine = signins();
+        java.util.List<String> targets = new java.util.ArrayList<>();
+        if (pkg.isEmpty()) targets.addAll(mine);
+        else if (Watch.SIGN_IN.containsKey(pkg)) targets.add(pkg);
+        else return new JSONObject().put("error", "Unknown app.");
+        java.util.List<String> failed = new java.util.ArrayList<>();
+        for (String p : targets) {
+            if (shell("am force-stop " + p + "; pm clear " + p).contains("Success")) mine.remove(p);
+            else failed.add(p);
+        }
+        JSONObject s = Stay.json(ctx);
+        s.put("signins", new JSONArray(mine));
+        Stay.write(ctx, s);
+        if (!failed.isEmpty()) return new JSONObject().put("error", "Couldn't sign out. Debugging must be on in the TV's setup.");
+        return new JSONObject().put("ok", true).put("count", targets.size());
+    }
+
+    private java.util.Set<String> signins() {
+        java.util.Set<String> out = new java.util.LinkedHashSet<>();
+        JSONArray a = Stay.json(ctx).optJSONArray("signins");
+        if (a != null) for (int i = 0; i < a.length(); i++) out.add(a.optString(i));
+        return out;
+    }
+
+    private JSONArray signedInLabels() {
+        JSONArray out = new JSONArray();
+        PackageManager pm = ctx.getPackageManager();
+        for (String p : signins()) {
+            try {
+                out.put(pm.getApplicationLabel(pm.getApplicationInfo(p, 0)).toString());
+            } catch (PackageManager.NameNotFoundException gone) {
+                // uninstalled since
+            }
+        }
+        return out;
+    }
+
+    private synchronized String shell(String command) {
+        for (int attempt = 0; attempt < 2; attempt++) {
+            try {
+                if (adb == null) adb = LocalAdb.connect(ctx, 3000);
+                return adb.shell(command);
+            } catch (Exception e) {
+                android.util.Log.w("HostServer", "shell failed", e);
+                if (adb != null) adb.close();
+                adb = null;
+            }
+        }
+        return "";
     }
 
     private boolean adbReady() {

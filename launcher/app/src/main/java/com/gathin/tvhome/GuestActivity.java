@@ -241,7 +241,7 @@ public class GuestActivity extends Activity {
         if (stay.staying()) {
             DateTimeFormatter day = DateTimeFormatter.ofPattern("EEE", Locale.getDefault());
             subtitle.setText(stay.arrivingToday() ? "Check-in from " + Stay.friendly(stay.checkin) + ". Make yourselves at home."
-                    : stay.leavingToday() ? "Check-out today by " + Stay.friendly(stay.checkout) + ". Safe travels."
+                    : stay.leavingToday() ? "Check-out today by " + Stay.friendly(stay.checkout) + ". Safe travels." + signOutReminder()
                     : "Night " + stay.night + " of " + stay.nights + " · check-out " + stay.depart.format(day) + " " + Stay.friendly(stay.checkout));
         } else if (HostServer.claimCode != null) {
             // Nobody has claimed this TV yet: point the owner at the QR code.
@@ -655,6 +655,13 @@ public class GuestActivity extends Activity {
         d.setCornerRadius(px(radiusDp));
         d.setStroke(Math.max(1, Math.round(dp)), 0x33FFFFFF);
         return d;
+    }
+
+    /** On the last day, reminds guests who signed in to an app from their phone to sign out again. */
+    private String signOutReminder() {
+        org.json.JSONArray a = Stay.json(this).optJSONArray("signins");
+        if (a == null || a.length() == 0) return "";
+        return "\nStill signed in to " + (a.length() == 1 ? "an app" : a.length() + " apps") + ": sign out from your phone, under Home.";
     }
 
     private TextView text(String s, int sp, int color, int font) {

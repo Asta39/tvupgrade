@@ -208,6 +208,14 @@
     border-radius: 16px; background: rgba(255,255,255,.12); font-weight: 600; font-size: 17px; }
   .sheet .where button:active { background: var(--glass-press); }
   .sheet .where small { color: var(--ink-3); font-weight: 500; font-size: 14px; }
+  .sheet p { color: var(--ink-2); font-size: 15px; padding: 8px 4px 0; line-height: 1.4; }
+  .sheet .btn { margin-top: 10px; }
+  .remind { border-radius: 20px; padding: 14px 16px; margin-top: 18px; display: flex; flex-direction: column; gap: 10px; }
+  .remind.urgent { border-color: rgba(255,159,10,.6); }
+  .remind b { font-size: 16px; }
+  .remind span { color: var(--ink-2); font-size: 14px; }
+  .acct-btn { font-size: 14px; font-weight: 600; border-radius: 999px; padding: 8px 14px; min-height: 36px; background: #fff; color: #000; flex: 0 0 auto; }
+  .acct-btn.out { background: rgba(255,105,97,.2); color: var(--red); }
   .toast { position: fixed; left: 50%; top: calc(var(--sat) + 14px); transform: translate(-50%, -20px); background: #fff; color: #000; z-index: 9;
     padding: 10px 18px; border-radius: 999px; font-weight: 600; font-size: 15px; opacity: 0; transition: .25s var(--ease); pointer-events: none; }
   .toast.show { opacity: 1; transform: translate(-50%, 0); }
@@ -384,7 +392,9 @@ function homeView() {
       <div class="row"><span class="k">Check-in</span><span class="v">from ${esc(s.checkin)}</span></div>
       <div class="row"><span class="k">Check-out</span><span class="v">by ${esc(s.checkout)}${s.checkout_day ? ', ' + esc(s.checkout_day) : ''}</span></div>
     </div></div>
+    ${signedReminder()}
     <p style="text-align:center;margin-top:26px"><button class="link" id="hostin">Host sign-in</button></p>`;
+  bindSignOutAll();
   if ($('#copy')) $('#copy').onclick = () => copy(s.wifi_password);
   $('#hostin').onclick = signIn;
 }
@@ -498,11 +508,14 @@ function watchView() {
         <button class="round glass big" id="dplay" aria-label="Play now" style="background:#fff;color:#000">${svg('play', 26, 2, 'currentColor')}</button>
         <button class="round glass" id="dyes" aria-label="Like" style="color:#ff6b8a">${svg('heart', 26, 2.2)}</button></div></div>
     <div class="section" id="picksec" ${picks.length ? '' : 'hidden'}><span class="eyebrow">Your picks</span><div class="shelf" id="picks"></div></div>
+    <div class="section" id="acctsec" hidden><span class="eyebrow">Your accounts</span><div class="list glass" id="accts"></div>
+      <div class="note">Sign in with the app’s own code, on your phone. Your password never goes through this TV.</div></div>
     ${s.apps.length ? `<div class="section"><span class="eyebrow">Apps</span><div class="apps">
       ${s.apps.map(a => `<button class="app" data-app="${esc(a.pkg)}"><img src="/api/icon?pkg=${encodeURIComponent(a.pkg)}" alt=""><span>${esc(a.label)}</span></button>`).join('')}</div></div>` : ''}`;
   document.querySelectorAll('[data-app]').forEach(b => b.onclick = () => { tick(); api('/api/remote', { app: b.dataset.app }).then(() => toast('Opening on the TV…')).catch(e => toast(e.message)); });
   $('#watchf').onsubmit = e => { e.preventDefault(); search($('#wq').value); $('#wq').blur(); };
   showPicks();
+  showAccounts();
   deck.start();
 }
 async function search(q) {
@@ -545,6 +558,62 @@ function chooseWhere(title, where) {
   });
 }
 async function playWhere(title, where) { const w = await chooseWhere(title, where); if (w) playId(w.id); }
+
+// ---- signing in to the TV's apps from the phone ------------------------------------------------------------
+// Each app's TV sign-in: the TV shows a code, you approve it on the app's own page on your phone. Signing out
+// clears the app on the TV, so nobody's account stays behind after check-out.
+function signedReminder() {
+  const s = state.signed_in || [];
+  if (!s.length || state.host) return '';
+  const urgent = state.leaving;
+  return `<div class="remind glass ${urgent ? 'urgent' : ''}"><b>${urgent ? 'Before you go, sign out' : 'Signed in on this TV'}</b>
+    <span>${esc(s.join(', '))}. ${urgent ? 'Sign out so the next guests can’t use your account.' : 'Remember to sign out before you leave.'}</span>
+    <button class="btn glass red" id="signoutall" style="min-height:48px">Sign out of ${s.length === 1 ? esc(s[0]) : 'all ' + s.length + ' apps'}</button></div>`;
+}
+function bindSignOutAll() {
+  const b = $('#signoutall'); if (!b) return;
+  b.onclick = async () => {
+    if (!confirm('Sign out of ' + state.signed_in.join(', ') + ' on this TV?')) return;
+    tick(); b.disabled = true; b.textContent = 'Signing out…';
+    try { const r = await api('/api/accounts/signout', {}); toast(r.error || 'Signed out'); state = await api('/api/state'); render(); }
+    catch (e) { toast(e.message); b.disabled = false; }
+  };
+}
+async function showAccounts() {
+  let r; try { r = await api('/api/accounts'); } catch (e) { return; }
+  const box = $('#accts'); if (!box || !r.apps.length) return;
+  $('#acctsec').hidden = false;
+  box.innerHTML = r.apps.map(a => `<div class="row" style="justify-content:flex-start;gap:12px"><img class="icon" src="/api/icon?pkg=${encodeURIComponent(a.pkg)}" alt="">
+    <span class="two-line" style="flex:1 1 auto"><span>${esc(a.label)}</span>${a.signed_in ? '<small style="color:var(--green)">Signed in from a phone</small>' : ''}</span>
+    ${a.signed_in ? (r.can_sign_out ? `<button class="acct-btn out" data-out="${esc(a.pkg)}">Sign out</button>` : '')
+      : `<button class="acct-btn" data-in="${esc(a.pkg)}">Sign in</button>`}</div>`).join('');
+  box.querySelectorAll('[data-in]').forEach(b => b.onclick = () => signInSheet(r.apps.find(a => a.pkg === b.dataset.in)));
+  box.querySelectorAll('[data-out]').forEach(b => b.onclick = async () => {
+    const a = r.apps.find(x => x.pkg === b.dataset.out);
+    if (!confirm(`Sign out of ${a.label} on this TV? Anyone signed in to it here is signed out.`)) return;
+    tick(); b.disabled = true; b.textContent = '…';
+    try { const x = await api('/api/accounts/signout', { pkg: a.pkg }); toast(x.error || 'Signed out of ' + a.label); state = await api('/api/state'); showAccounts(); }
+    catch (e) { toast(e.message); }
+  });
+}
+async function signInSheet(a) {
+  tick();
+  let r; try { r = await api('/api/accounts/signin', { pkg: a.pkg }); } catch (e) { return toast(e.message); }
+  if (r.error) return toast(r.error);
+  const scrim = document.createElement('div'), sheet = document.createElement('div');
+  scrim.className = 'scrim'; sheet.className = 'sheet glass'; sheet.setAttribute('role', 'dialog'); sheet.setAttribute('aria-label', 'Sign in to ' + a.label);
+  const host = r.url.replace(/^https?:\/\/(www\.)?/, '');
+  sheet.innerHTML = `<h2>Sign in to ${esc(a.label)}</h2>
+    <p>1. On the TV, ${esc(a.label)} is opening. Choose <b>Sign in</b>, then the option to use your phone or a code.</p>
+    <p>2. Open <b>${esc(host)}</b> here and type the code from the TV. Or scan the TV’s QR with your camera.</p>
+    <a class="btn solid" href="${esc(r.url)}" target="_blank" rel="noopener">Open ${esc(host)}</a>
+    <button class="btn glass" id="sdone" style="min-height:50px">Done</button>
+    <p style="font-size:13px;color:var(--ink-3)">Sign out before you leave: Watch › Your accounts, or the reminder on Home.</p>`;
+  document.body.append(scrim, sheet);
+  requestAnimationFrame(() => { scrim.classList.add('on'); sheet.classList.add('on'); });
+  const close = () => { scrim.classList.remove('on'); sheet.classList.remove('on'); setTimeout(() => { scrim.remove(); sheet.remove(); }, 350); showAccounts(); api('/api/state').then(x => state = x); };
+  scrim.onclick = close; $('#sdone').onclick = close;
+}
 
 // Picks you liked, kept on this phone. Links expire when the TV restarts, so a pick plays by searching its title again.
 function loadPicks() { try { return JSON.parse(localStorage.getItem('tvhome-picks') || '[]'); } catch (e) { return []; } }

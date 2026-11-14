@@ -74,6 +74,24 @@ final class Watch {
         SHORT.put("com.wbd.stream", "mxx");
     }
 
+    /**
+     * Each app's own sign-in page for TVs: the TV app shows a code, the viewer opens this page on their phone, where
+     * they are usually signed in already, and approves it. No password ever passes through the TV or our page.
+     */
+    static final Map<String, String> SIGN_IN = new LinkedHashMap<>();
+
+    static {
+        SIGN_IN.put("com.netflix.ninja", "https://www.netflix.com/tv8");
+        SIGN_IN.put("com.amazon.amazonvideo.livingroom", "https://www.primevideo.com/mytv");
+        SIGN_IN.put("com.disney.disneyplus", "https://www.disneyplus.com/begin");
+        SIGN_IN.put("com.crunchyroll.crunchyroid", "https://www.crunchyroll.com/activate");
+        SIGN_IN.put("com.apple.atve.androidtv.appletv", "https://activate.apple.com");
+        SIGN_IN.put("com.google.android.youtube.tv", "https://yt.be/activate");
+        SIGN_IN.put("com.showmax.app", "https://www.showmax.com/activate");
+        SIGN_IN.put("com.wbd.stream", "https://auth.max.com/link");
+        SIGN_IN.put("com.spotify.tv.android", "https://www.spotify.com/pair");
+    }
+
     /** JustWatch genres, as the phone shows them. */
     static final String[][] GENRES = {{"act", "Action"}, {"ani", "Animation"}, {"cmy", "Comedy"}, {"crm", "Crime"},
             {"doc", "Documentary"}, {"drm", "Drama"}, {"fnt", "Fantasy"}, {"hst", "History"}, {"hrr", "Horror"},
