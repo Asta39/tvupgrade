@@ -125,6 +125,69 @@ puts Google's back.
 
 ![Stock Google TV home](screenshots/before.jpg)
 
+## Guest mode: a TV for your Airbnb
+
+Switch the TV to **Guest mode** and it becomes a welcome screen for the people staying: their names, the stay, the
+Wi-Fi, the weather and only the apps you allow. Guests scan the QR code and **their phone becomes the TV's
+companion**, served by the TV itself on the home Wi-Fi (port 8686): no app to install, no account, no cloud. The TV
+stays minimal; everything rich lives on the phone.
+
+![Guest mode welcome screen](screenshots/guest-mode.jpg)
+
+### The phone's Home: a dashboard for the stay
+
+| | |
+|---|---|
+| ![Phone Home: today, weather by the hour](screenshots/phone-home.jpg) | ![Phone Home: around you and what's popular](screenshots/phone-home-more.jpg) |
+
+- **Today:** pick up what you were watching (*Up next*, one tap resumes it on the TV), and the song playing for the
+  room.
+- **Your stay and the door code**, with a countdown to check-out on the last day.
+- **Weather by the hour** for the next six hours, with the chance of rain.
+- **Around you:** the Wi-Fi with a Copy button, sunrise or sunset on a little sun arc, and *Tonight*: three ideas
+  for the evening nearby, from the host's own Groq key (optional).
+- **Popular on your TV:** posters of what's trending on the apps this TV has. Tap one and it plays on the TV.
+- **Open on the TV:** the allowed apps, one tap each.
+
+### Watch together
+
+Nobody can agree what to watch? Everyone opens **Watch › Watch together** on their own phone and swipes the same
+deck of shows and films from the TV's apps. When every phone in the room has liked the same title, it's a match:
+the phones and the TV both say so, with a Play button.
+
+| | |
+|---|---|
+| ![Swiping together](screenshots/phone-together.jpg) | ![It's a match, on the phone](screenshots/phone-match.jpg) |
+
+![It's a match, on the TV](screenshots/tv-match.jpg)
+
+No match after a while? *Most liked so far* lists the room's favourites, best first, each with its own Play button.
+
+### Music for the room
+
+Guests search songs on the **Music** tab and add them to one shared queue that plays on the TV. Songs take turns
+between phones (at most six waiting each), so one person can't take over the night. Anyone can skip; you can only
+remove your own songs. The first song opens StandBy with the lyrics.
+
+<img src="screenshots/phone-music.jpg" alt="Music: now playing, search and the shared queue" width="450">
+
+No keys and no accounts: search uses Apple's public iTunes song search, and songs play through **Bitchord**
+(YouTube Music) when the TV has it, else YouTube. Bitchord picks its best match for "song + artist", so now and
+then it plays a different version. Spotify's TV app was tried first; it accepts no play requests from other apps.
+
+### The arrival show
+
+The first time a guest's phone opens the page on check-in day, the TV plays a short welcome over the place's own
+pictures: their names, the place, the Wi-Fi with a code to join from the camera, a tour of the house rules, their
+stay and door code, and how the phone works as the remote. It ends on the welcome screen, plays once per stay, and
+the host can switch it off or preview it from **Host › Settings**.
+
+### YouTube means TizenTube
+
+Wherever the launcher opens YouTube (search results, posters, matches, music), it uses
+TizenTube when it's installed, and the original YouTube app when it
+isn't. This works on any TV.
+
 ## What's on screen
 
 - **Lock-screen clock.** A tall, condensed, centred clock in liquid glass (see above), with the date above it.

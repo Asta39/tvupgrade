@@ -152,6 +152,12 @@ soft-edged clipped sweep drawn every frame (`postOnAnimation`), never by re-layi
 
 ## 6. Extending
 
+- **YouTube means TizenTube first, on every TV.** Anything that opens YouTube goes through `Watch.youtube(pm)`:
+  TizenTube (`io.gh.reisxd.tizentube.cobalt`) when installed, else the original YouTube (`com.google.android.youtube.tv`).
+  Don't hard-code either package.
+- Party mode's music player: Bitchord (`com.music.bitchord.tv`) when installed, asked through its media session
+  (it ignores links and play-from-search intents); else YouTube as above, opened on the song's video. Spotify's TV
+  app takes no play requests from other apps (tested 2026-11-14), so don't route music to it.
 - New look options go behind a new theme key in `Config.java` that defaults to off, read in `Config.load`, reset
   at its start.
 - Match the code around you: its comment density and voice, Java without libraries, `dp` math via
