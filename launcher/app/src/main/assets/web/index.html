@@ -303,11 +303,18 @@ async function load() {
       <button class="btn solid" onclick="location.reload()" style="margin-top:12px">Try again</button></div>`;
     return;
   }
+  if (state.build) build = build || state.build;
   if (!state.claimed) return claimView();
   const pages = state.host ? HOST : GUEST;
   if (!pages.some(p => p[0] === page)) page = state.host ? 'remote' : 'home';
   render();
 }
+// A phone tab can stay open for days. When the TV has a newer page than this one, reload into it.
+let build = 0;
+document.addEventListener('visibilitychange', async () => {
+  if (document.hidden) return;
+  try { const s = await api('/api/state'); if (build && s.build && s.build !== build) location.reload(); } catch (e) {}
+});
 function go(p) { page = p; window.scrollTo(0, 0); render(); }
 function render() {
   clearInterval(nowTimer); actions(null); app.className = '';

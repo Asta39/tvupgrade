@@ -436,6 +436,11 @@ final class HostServer {
                 .put("depart", stay.staying() ? stay.depart.toString() : "");
         o.put("apps", allowedApps());
         o.put("signed_in", signedInLabels());
+        // Changes with every install, so an open phone tab can tell it is running an older page and reload.
+        try {
+            o.put("build", ctx.getPackageManager().getPackageInfo(ctx.getPackageName(), 0).lastUpdateTime);
+        } catch (PackageManager.NameNotFoundException ignored) {
+        }
         o.put("auto_signout", s.optBoolean("auto_signout", true) && s.optLong("signout_at", 0) > 0);
         return o;
     }
