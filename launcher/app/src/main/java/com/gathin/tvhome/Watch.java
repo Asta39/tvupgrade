@@ -164,10 +164,24 @@ final class Watch {
      */
     static JSONObject discover(Context ctx, String genre, int offset) throws Exception {
         PackageManager pm = ctx.getPackageManager();
-        JSONArray packages = new JSONArray();
-        for (Map.Entry<String, String> e : SHORT.entrySet()) if (installed(pm, e.getKey())) packages.put(e.getValue());
-        if (packages.length() == 0) return new JSONObject().put("cards", new JSONArray()).put("error", "No streaming apps found on the TV.");
-        JSONObject filter = new JSONObject().put("packages", packages);
+        java.util.List<String> packages = new java.util.ArrayList<>();
+        for (Map.Entry<String, String> e : SHORT.entrySet()) if (installed(pm, e.getKey())) packages.add(e.getValue());
+        if (packages.isEmpty()) return new JSONObject().put("cards", new JSONArray()).put("error", "No streaming apps found on the TV.");
+        // One app per batch, chosen at random, so a big catalogue (Prime, Apple TV) can't fill the whole deck. An app
+        // with nothing in this genre or country gives way to the next one.
+        java.util.Collections.shuffle(packages);
+        JSONObject out = null;
+        for (int i = 0; i < Math.min(4, packages.size()); i++) {
+            out = discover(ctx, pm, genre, offset, packages.get(i));
+            if (out.getJSONArray("cards").length() > 0) break;
+        }
+        return out;
+    }
+
+    private static JSONObject discover(Context ctx, PackageManager pm, String genre, int offset, String app) throws Exception {
+        // Only titles included in a subscription or free: rent and buy offers made Apple TV and Prime look like they had everything.
+        JSONObject filter = new JSONObject().put("packages", new JSONArray().put(app))
+                .put("monetizationTypes", new JSONArray().put("FLATRATE").put("FREE").put("ADS"));
         boolean known = false;
         for (String[] g : GENRES) if (g[0].equals(genre)) known = true;
         if (known) filter.put("genres", new JSONArray().put(genre));
@@ -200,6 +214,8 @@ final class Watch {
                 JSONObject o = offers.getJSONObject(k);
                 String pkg = APPS.get(o.getJSONObject("package").optString("technicalName"));
                 String link = o.optString("deeplinkURL", "");
+                String mt = o.optString("monetizationType");
+                if ("RENT".equals(mt) || "BUY".equals(mt)) continue;
                 if (pkg == null || "null".equals(link) || link.isEmpty() || !installed(pm, pkg) || !seen.add(pkg)) continue;
                 where.put(new JSONObject().put("name", o.getJSONObject("package").optString("clearName"))
                         .put("kind", kind(o.optString("monetizationType"))).put("id", remember(pkg, link)));

@@ -194,6 +194,18 @@
   .rule-x { width: 22px; height: 22px; border-radius: 50%; background: var(--red); color: #fff; font-weight: 700; line-height: 1; flex: 0 0 auto; }
   .move { color: var(--ink-3); padding: 4px; min-width: 32px; min-height: 32px; }
   .answer { font-size: 16px; line-height: 1.45; white-space: pre-wrap; padding: 4px 2px; }
+  .scrim { position: fixed; inset: 0; z-index: 8; background: rgba(0,0,0,.45); opacity: 0; transition: opacity .25s; }
+  .scrim.on { opacity: 1; }
+  .sheet { position: fixed; z-index: 9; left: 50%; bottom: calc(var(--sab) + 12px); width: min(540px, calc(100% - 24px));
+    transform: translate(-50%, 110%); transition: transform .35s var(--ease); border-radius: 28px; padding: 18px 16px 14px;
+    background: rgba(40,40,46,.72); }
+  .sheet.on { transform: translate(-50%, 0); }
+  .sheet h2 { font: 700 20px var(--font-d); padding: 0 4px; }
+  .sheet .where { display: flex; flex-direction: column; gap: 8px; margin: 14px 0 10px; }
+  .sheet .where button { display: flex; align-items: center; justify-content: space-between; min-height: 54px; padding: 0 18px;
+    border-radius: 16px; background: rgba(255,255,255,.12); font-weight: 600; font-size: 17px; }
+  .sheet .where button:active { background: var(--glass-press); }
+  .sheet .where small { color: var(--ink-3); font-weight: 500; font-size: 14px; }
   .toast { position: fixed; left: 50%; top: calc(var(--sat) + 14px); transform: translate(-50%, -20px); background: #fff; color: #000; z-index: 9;
     padding: 10px 18px; border-radius: 999px; font-weight: 600; font-size: 15px; opacity: 0; transition: .25s var(--ease); pointer-events: none; }
   .toast.show { opacity: 1; transform: translate(-50%, 0); }
@@ -515,6 +527,23 @@ async function search(q) {
 }
 function playId(id) { tick(); return api('/api/watch/play', { id }).then(x => { toast(x.error || x.note || 'Opening on the TV…'); return !x.error; }).catch(e => { toast(e.message); return false; }); }
 
+// More than one app has it: ask which one, in a sheet over the page. Resolves with the chosen entry, or null.
+function chooseWhere(title, where) {
+  if (where.length < 2) return Promise.resolve(where[0] || null);
+  return new Promise(done => {
+    const scrim = document.createElement('div'), sheet = document.createElement('div');
+    scrim.className = 'scrim'; sheet.className = 'sheet glass'; sheet.setAttribute('role', 'dialog'); sheet.setAttribute('aria-label', 'Choose an app');
+    sheet.innerHTML = `<h2>Play ${esc(title)} on</h2><div class="where">${where.map((w, i) => `<button data-w="${i}"><span>${esc(w.name)}</span><small>${esc(KIND[w.kind] ? KIND[w.kind].replace(/ on$| in$/, '') : '')}</small></button>`).join('')}</div>
+      <button class="btn glass" data-w="-1" style="min-height:50px">Cancel</button>`;
+    document.body.append(scrim, sheet);
+    requestAnimationFrame(() => { scrim.classList.add('on'); sheet.classList.add('on'); });
+    const close = w => { scrim.classList.remove('on'); sheet.classList.remove('on'); setTimeout(() => { scrim.remove(); sheet.remove(); }, 350); done(w); };
+    scrim.onclick = () => close(null);
+    sheet.querySelectorAll('[data-w]').forEach(b => b.onclick = () => { tick(); close(+b.dataset.w >= 0 ? where[+b.dataset.w] : null); });
+  });
+}
+async function playWhere(title, where) { const w = await chooseWhere(title, where); if (w) playId(w.id); }
+
 // Picks you liked, kept on this phone. Links expire when the TV restarts, so a pick plays by searching its title again.
 function loadPicks() { try { return JSON.parse(localStorage.getItem('tvhome-picks') || '[]'); } catch (e) { return []; } }
 function savePicks(p) { try { localStorage.setItem('tvhome-picks', JSON.stringify(p.slice(0, 30))); } catch (e) {} }
@@ -525,7 +554,8 @@ function showPicks() {
   box.querySelectorAll('[data-pick]').forEach(b => b.onclick = () => playTitle(loadPicks()[+b.dataset.pick]));
 }
 async function playTitle(t) {
-  if (t.id && await playId(t.id)) return;
+  if (t.where && t.where.length) { const w = await chooseWhere(t.title, t.where); if (!w) return; if (await playId(w.id)) return; }
+  else if (t.id && await playId(t.id)) return;
   try { const r = await api('/api/watch/search', { q: t.title });
     const hit = (r.results || []).find(x => x.title === t.title) || (r.results || [])[0];
     const w = hit && (hit.where.find(x => x.id && x.kind !== 'search') || hit.where.find(x => x.id));
@@ -578,7 +608,7 @@ const deck = {
     $('#dno').onclick = () => this.fling(-1);
     $('#dyes').onclick = () => this.fling(1);
     $('#dundo').onclick = () => this.undo();
-    $('#dplay').onclick = () => { if (this.top) { const w = this.top.where[0]; if (w) playId(w.id); } };
+    $('#dplay').onclick = () => { if (this.top) playWhere(this.top.title, this.top.where); };
     if (this.queue.length) this.next(); else this.fill();
   },
   name(g) { const f = this.genres.find(x => x[0] === g); return f ? f[1] : g; },
@@ -620,6 +650,7 @@ const deck = {
     });
     const up = e => {
       if (x0 === null) return; x0 = null;
+      if (sideways === null && e.type === 'pointerup' && this.top) { playWhere(this.top.title, this.top.where); return; }
       if (!sideways) return;
       el.classList.remove('drag');
       const v = Math.abs(dx) / Math.max(1, e.timeStamp - t0);
@@ -643,7 +674,7 @@ const deck = {
     this.store(p);
     if (dir > 0) {
       const picks = loadPicks().filter(x => x.title !== c.title);
-      picks.unshift({ title: c.title, poster: c.poster, app: c.where[0] && c.where[0].name, id: c.where[0] && c.where[0].id });
+      picks.unshift({ title: c.title, poster: c.poster, app: c.where.map(w => w.name).join(' · '), where: c.where });
       savePicks(picks); showPicks();
     }
     this.history.push({ card: c, dir });
