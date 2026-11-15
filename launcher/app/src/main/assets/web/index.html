@@ -161,6 +161,18 @@
   .shelf .pick b { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .shelf .pick small { font-size: 12px; color: var(--ink-3); }
 
+  /* typing on the TV from the phone's keyboard */
+  .typebar { position: fixed; z-index: 7; left: 50%; transform: translateX(-50%); bottom: calc(var(--sab) + 84px);
+    width: min(440px, calc(100% - 2 * var(--side))); border-radius: 22px; padding: 10px; display: flex; flex-direction: column; gap: 8px;
+    animation: typein .3s var(--ease); }
+  @keyframes typein { from { opacity: 0; transform: translate(-50%, 12px); } }
+  .typebar .head { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); padding: 0 4px; }
+  .typebar form { display: flex; gap: 8px; }
+  .typebar input { flex: 1 1 auto; min-width: 0; min-height: 44px; border-radius: 14px; padding: 0 14px; font-size: 17px;
+    background: rgba(255,255,255,.12); color: inherit; border: 0; outline: none; }
+  .typebar .pill { flex: 0 0 auto; }
+  .card .play-hint { position: absolute; top: 16px; right: 16px; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center;
+    background: rgba(0,0,0,.4); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
   /* the swipe deck */
   .deck { position: relative; height: clamp(340px, calc(100dvh - 330px), 560px); margin-top: 12px; touch-action: pan-y; }
   .card { position: absolute; inset: 0; border-radius: 26px; overflow: hidden; background: #111 center/cover no-repeat;
@@ -287,6 +299,8 @@ const ICON = {
   prev: '<path d="M18 6L8 12l10 6z"/><path d="M6 6v12"/>', next: '<path d="M6 6l10 6-10 6z"/><path d="M18 6v12"/>',
   r10: '<path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v4h4"/>', f10: '<path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v4h-4"/>',
   mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
+  kbd: '<rect x="2" y="6" width="20" height="12" rx="2.5"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/>',
+  pause: '<path d="M8 5v14M16 5v14"/>',
   music: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
   people: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.8"/><path d="M16 14.2a5.5 5.5 0 0 1 6 5.8"/>',
 };
@@ -372,7 +386,43 @@ async function load() {
   const pages = pagesFor();
   if (page !== 'together' && !pages.some(p => p[0] === page)) page = state.host ? 'remote' : 'home';
   render();
+  typer.start();
 }
+// Typing on the TV with the phone's own keyboard. While the page is open, it asks the TV every 1.5 s whether a text
+// box there has its on-screen keyboard up. When one does, a bar slides up with a text field; what you type there is
+// typed on the TV as you go (backspace too), and Go submits it. The bar leaves when the TV's keyboard does.
+const typer = {
+  timer: null, bar: null, last: '', chain: Promise.resolve(), hiddenFor: 0,
+  start() { if (this.timer) return; this.timer = setInterval(() => this.check(), 1500); this.check(); },
+  async check() {
+    if (document.hidden || !state || !state.claimed) return;
+    let r; try { r = await api('/api/ime', { check: true }); } catch (e) { return; }
+    if (r.error) return;
+    if (r.shown && !this.bar && Date.now() > this.hiddenFor) this.open(r.secret);
+    else if (!r.shown && this.bar) this.close();
+  },
+  open(secret) {
+    tick();
+    const bar = document.createElement('div'); bar.className = 'typebar glass'; bar.setAttribute('role', 'dialog'); bar.setAttribute('aria-label', 'Type on the TV');
+    bar.innerHTML = `<div class="head">${svg('kbd', 18)}<span style="flex:1 1 auto">The TV wants text. Type it here.</span>
+        <button class="rule-x" id="tyx" aria-label="Hide">×</button></div>
+      <form id="tyf"><input id="tyin" type="${secret ? 'password' : 'text'}" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="go" placeholder="Type on the TV">
+        <button class="pill" type="submit">Go</button></form>`;
+    document.body.append(bar); this.bar = bar; this.last = '';
+    const inp = $('#tyin');
+    inp.oninput = () => {
+      const v = inp.value, p = this.last; let i = 0;
+      while (i < v.length && i < p.length && v[i] === p[i]) i++;
+      const del = p.length - i, add = v.slice(i); this.last = v;
+      this.chain = this.chain.then(async () => { if (del) await api('/api/ime', { del }); if (add) await api('/api/ime', { text: add }); }).catch(() => {});
+    };
+    $('#tyf').onsubmit = e => { e.preventDefault(); tick(); this.chain = this.chain.then(() => api('/api/ime', { enter: true })).catch(() => {}); inp.value = ''; this.last = ''; inp.blur(); };
+    $('#tyx').onclick = () => { this.close(); this.hiddenFor = Date.now() + 20000; };
+    // Phones open the keyboard only for a field focused from a tap; Android Chrome often allows it straight away.
+    inp.focus();
+  },
+  close() { if (this.bar) { this.bar.remove(); this.bar = null; } },
+};
 // A phone tab can stay open for days. When the TV has a newer page than this one, reload into it.
 let build = 0;
 document.addEventListener('visibilitychange', async () => {
@@ -382,6 +432,7 @@ document.addEventListener('visibilitychange', async () => {
 function go(p) { page = p; window.scrollTo(0, 0); render(); }
 function render() {
   clearInterval(nowTimer); actions(null); app.className = '';
+  if (page !== 'party') songDeck.stop();
   dock(pagesFor());
   if (page === 'remote') return remoteView();
   if (page === 'watch') return watchView();
@@ -459,6 +510,7 @@ function homeView() {
     <h1>${hello}</h1><p class="sub">${line}</p>
     ${signedReminder()}
     <div id="dtoday"></div>
+    <div id="dcont"></div>
     <div class="grid2">
       ${s.staying ? stayTile() : ''}
       ${s.door_code ? `<div class="tile glass">${svg('lock', 22)}<span class="label">Door code</span><span class="big" style="letter-spacing:.08em">${esc(s.door_code)}</span></div>` : ''}
@@ -550,7 +602,7 @@ function fillDash() {
   const d = dash || {};
   // Today: what to resume, then the music playing for the room.
   const today = [];
-  if (d.recent) today.push(`<div class="media glass"><img class="mposter" src="${esc(d.recent.poster)}" alt="">
+  if (d.recent && !(d.continue && d.continue.length)) today.push(`<div class="media glass"><img class="mposter" src="${esc(d.recent.poster)}" alt="">
       <div class="two-line" style="flex:1 1 auto"><span class="eyebrow">Up next</span><b class="mtitle">${esc(d.recent.title)}</b><small>${d.recent.app ? 'Resume on ' + esc(d.recent.app) : 'Pick up where you left off'}</small></div>
       <button class="round solid" id="dresume" aria-label="Play ${esc(d.recent.title)} on the TV" style="width:48px;height:48px">${svg('play', 20, 2, 'currentColor')}</button></div>`);
   if (d.music) today.push(`<button class="media glass" id="dmusic" style="width:100%;text-align:left">${d.music.art ? `<img class="mart" src="${esc(d.music.art)}" alt="">` : `<span class="mart" style="display:grid;place-items:center">${svg('music', 24)}</span>`}
@@ -558,6 +610,7 @@ function fillDash() {
       <small>${esc(d.music.artist)} · ${d.music.next ? d.music.next + ' up next' : 'added by ' + esc(d.music.by)}</small></div><span class="muted">›</span></button>`);
   $('#dtoday').innerHTML = today.length ? `<div class="section"><span class="eyebrow">Today</span><div class="stack">${today.join('')}</div></div>` : '';
   if ($('#dresume')) $('#dresume').onclick = () => playId(d.recent.id);
+  showContinue($('#dcont'), d.continue || []);
   if ($('#dmusic')) $('#dmusic').onclick = () => { tick(); go('party'); };
 
   // The weather: now, then the next six hours.
@@ -683,6 +736,7 @@ function watchView() {
   app.innerHTML = `<h1>Watch</h1>
     <form class="field glass" id="watchf" style="margin-top:10px">${svg('search', 18, 2.2)}<input id="wq" placeholder="Search shows and films" aria-label="Search shows and films" enterkeyhint="search"></form>
     <div class="results" id="wres"></div>
+    <div id="wcont"></div>
     <button class="together glass" id="together">${svg('people', 26)}<span class="two-line"><b>Watch together</b><small>Everyone swipes on their phone. When you all like the same one, the TV shows it.</small></span></button>
     <div class="section"><div style="display:flex;justify-content:space-between;align-items:baseline;padding:0 4px">
       <span class="eyebrow">Swipe to find something</span><span class="muted" style="font-size:13px" id="deckhint">Right to like · left to skip</span></div>
@@ -704,6 +758,7 @@ function watchView() {
   showAccounts();
   if (deck.group) deck.leaveGroup();
   deck.start();
+  api('/api/continue').then(r => { if (page === 'watch') showContinue($('#wcont'), r.items || []); }).catch(() => {});
 }
 async function search(q) {
   if (!q.trim()) return;
@@ -726,6 +781,13 @@ async function search(q) {
       catch (e) { toast(e.message); }
     });
   } catch (e) { box.innerHTML = `<div class="muted">${esc(e.message)}</div>`; }
+}
+// Continue watching: what was started from a phone, newest first, as a row of posters. Tap one to play it again.
+function showContinue(box, items) {
+  if (!box) return;
+  box.innerHTML = items.length ? `<div class="section"><span class="eyebrow">Continue watching</span><div class="shelf">${items.map((t, i) =>
+    `<button class="pick" data-cont="${i}"><img src="${esc(t.poster)}" alt=""><b>${esc(t.title)}</b><small>${esc(t.app || '')}</small></button>`).join('')}</div></div>` : '';
+  box.querySelectorAll('[data-cont]').forEach(b => b.onclick = () => playId(items[+b.dataset.cont].id));
 }
 function playId(id) { tick(); return api('/api/watch/play', { id }).then(x => { toast(x.error || x.note || 'Opening on the TV…'); return !x.error; }).catch(e => { toast(e.message); return false; }); }
 
@@ -1058,7 +1120,18 @@ function partyView() {
     <form class="field glass" id="pf" style="margin-top:14px">${svg('search', 18, 2.2)}<input id="pq" placeholder="Search songs or artists" aria-label="Search songs" enterkeyhint="search"></form>
     <div class="results" id="pres"></div>
     <div class="section" id="pqsec"><span class="eyebrow">Up next</span><div class="list glass" id="pqueue"><div class="row muted">Nothing queued yet. Search for a song.</div></div></div>
+    <div class="section"><div style="display:flex;justify-content:space-between;align-items:baseline;padding:0 4px">
+      <span class="eyebrow">Swipe for songs</span><span class="muted" style="font-size:13px">Right adds it · tap to hear it</span></div>
+      <div class="chips" id="schips" style="flex-wrap:nowrap;overflow-x:auto;padding:2px 4px 4px;scrollbar-width:none">${SONG_SEEDS.map(([l, q], i) =>
+        `<button data-seed="${i}" class="${i === songDeck.seedIx ? 'on' : ''}" style="flex:0 0 auto">${esc(l)}</button>`).join('')}</div>
+      <div class="deck" id="sdeck" style="height:clamp(300px, calc(100dvh - 380px), 480px)"><div class="deck-msg glass">Finding songs…</div></div>
+      <div class="deck-ctl">
+        <button class="round glass" id="sno" aria-label="Skip">${svg('x', 26, 2.4)}</button>
+        <button class="round glass big" id="shear" aria-label="Hear a preview" style="background:#fff;color:#000">${svg('play', 26, 2, 'currentColor')}</button>
+        <button class="round glass" id="syes" aria-label="Add to the queue" style="color:var(--green)">${svg('plus', 28, 2.4)}</button></div></div>
+    <div class="section" id="phsec" hidden><span class="eyebrow">Recently played</span><div class="list glass" id="phist"></div></div>
     ${state.host ? `<div class="section"><button class="btn glass red" id="pstop">Clear the queue</button></div>` : ''}`;
+  songDeck.start();
   $('#pf').onsubmit = e => { e.preventDefault(); partySearch($('#pq').value); $('#pq').blur(); };
   if ($('#pstop')) $('#pstop').onclick = async () => { if (!confirm('Clear the whole queue?')) return; tick(); await api('/api/party/stop', {}).catch(e => toast(e.message)); partyRefresh(); };
   partyRefresh(); nowTimer = setInterval(partyRefresh, 4000);
@@ -1087,8 +1160,113 @@ async function partyRefresh() {
       <span class="two-line" style="flex:1 1 auto"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}</span><small>${esc(t.artist)} · ${esc(t.mine ? 'you' : t.by)}</small></span>
       ${t.mine || state.host ? `<button class="rule-x" data-prm="${esc(t.id)}" aria-label="Remove ${esc(t.title)}">−</button>` : ''}</div>`).join('')
     : `<div class="row muted">${p.now ? 'Nothing after this song. Add one!' : 'Nothing queued yet. Search for a song.'}</div>`;
+  // Recently played: the last ten, newest first. Tap one to add it to the queue again.
+  const hist = p.history || [];
+  songDeck.heard = [p.now, ...p.queue, ...hist].filter(Boolean).map(t => t.artist);
+  $('#phsec').hidden = !hist.length;
+  $('#phist').innerHTML = hist.map(t => `<button class="row" data-again="${esc(t.id)}" style="justify-content:flex-start;gap:12px;width:100%;text-align:left">
+      ${t.art ? `<img class="icon" style="width:40px;height:40px" src="${esc(t.art)}" alt="">` : ''}
+      <span class="two-line" style="flex:1 1 auto"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}</span><small>${esc(t.artist)}</small></span>
+      <span class="muted" aria-label="Play again">${svg('r10', 20)}</span></button>`).join('');
+  $('#phist').querySelectorAll('[data-again]').forEach(b => b.onclick = async () => {
+    tick();
+    const x = await api('/api/party/replay', { id: b.dataset.again, phone: phoneId, name: myName(true) }).catch(e => ({ error: e.message }));
+    toast(x.error || (x.playing ? 'Playing it again' : 'Added to the queue again')); partyRefresh();
+  });
   $('#pqueue').querySelectorAll('[data-prm]').forEach(b => b.onclick = async () => { tick(); const r = await api('/api/party/remove', { id: b.dataset.prm, phone: phoneId }).catch(e => ({ error: e.message })); if (r.error) toast(r.error); partyRefresh(); });
 }
+// The song deck: swipe right to add a song to the room's queue, left to skip; tap the card (or ▶) for a 30-second
+// preview on this phone. "For you" searches the artists already playing in the room.
+const SONG_SEEDS = [['For you', '*'], ['Top songs', ''], ['Afrobeats', 'afrobeats'], ['Amapiano', 'amapiano'], ['Hip-hop', 'hip hop'],
+  ['R&B', 'r&b'], ['Pop', 'pop hits'], ['Bongo', 'bongo flava'], ['Gospel', 'gospel'], ['Reggae', 'reggae'], ['Dance', 'dance'], ['Rock', 'rock']];
+const songDeck = {
+  queue: [], top: null, group: { songs: true }, seedIx: 0, loading: false, heard: [], audio: null, listening: false,
+  seen() { try { return JSON.parse(localStorage.getItem('tvhome-songseen') || '[]'); } catch (e) { return []; } },
+  saw(id) { try { localStorage.setItem('tvhome-songseen', JSON.stringify([id, ...this.seen().filter(x => x !== id)].slice(0, 400))); } catch (e) {} },
+  start() {
+    this.stop(); this.top = null;
+    document.querySelectorAll('#schips [data-seed]').forEach(b => b.onclick = () => {
+      tick(); this.seedIx = +b.dataset.seed; this.queue = [];
+      document.querySelectorAll('#schips [data-seed]').forEach(x => x.classList.toggle('on', x === b));
+      this.msg('Finding songs…'); this.stop(); this.top = null; this.fill();
+    });
+    $('#sno').onclick = () => this.fling(-1);
+    $('#syes').onclick = () => this.fling(1);
+    $('#shear').onclick = () => this.hear();
+    if (this.queue.length) this.next(); else this.fill();
+  },
+  seed() {
+    const q = SONG_SEEDS[this.seedIx][1];
+    if (q !== '*') return q;
+    const a = [...new Set(this.heard.filter(Boolean))];
+    return a.length ? a[Math.floor(Math.random() * a.length)] : '';
+  },
+  async fill() {
+    if (this.loading) return; this.loading = true;
+    try {
+      const ix = this.seedIx, r = await api('/api/party/discover', { seed: this.seed() });
+      if (ix !== this.seedIx) { this.loading = false; return this.fill(); }
+      const seen = this.seen();
+      const fresh = (r.cards || []).filter(c => !seen.includes(c.id) && !this.queue.some(q => q.id === c.id) && (!this.top || this.top.id !== c.id));
+      fresh.sort(() => Math.random() - .5).slice(0, 15).forEach(c => this.queue.push(c));
+      if (r.error && !fresh.length && !this.top) this.msg(r.error);
+    } catch (e) { if (!this.top) this.msg(e.message); }
+    this.loading = false;
+    if (!this.top) this.next();
+  },
+  msg(t) { const d = $('#sdeck'); if (d) d.innerHTML = `<div class="deck-msg glass">${esc(t)}</div>`; },
+  next() {
+    const d = $('#sdeck'); if (!d) return;
+    this.top = this.queue.shift() || null;
+    if (this.queue.length < 4) this.fill();
+    if (!this.top) { if (!this.loading) this.msg('No more here. Try another chip or a search.'); return; }
+    d.innerHTML = '';
+    if (this.queue[0]) d.appendChild(this.cardEl(this.queue[0], true));
+    d.appendChild(this.cardEl(this.top, false));
+    if (this.listening) this.hear(true);
+  },
+  cardEl(c, back) {
+    const el = document.createElement('div');
+    el.className = 'card'; el.style.backgroundImage = `url("${c.art}")`;
+    if (back) { el.style.transform = 'scale(.94) translateY(10px)'; el.style.opacity = '.7'; }
+    el.innerHTML = `<div class="shade"></div><span class="stamp like">ADD</span><span class="stamp nope">NOPE</span>
+      ${c.preview ? `<span class="play-hint">${svg('play', 18, 2, 'currentColor')}</span>` : ''}
+      <div class="meta">${c.genre ? `<div class="tags"><span>${esc(c.genre)}</span></div>` : ''}
+      <b>${esc(c.title)}</b><small>${esc(c.artist)}${c.duration ? ' · ' + fmt(c.duration) : ''}</small></div>`;
+    if (!back) { deck.drag.call(this, el); el.addEventListener('click', () => this.hear()); }
+    return el;
+  },
+  hear(auto) {
+    const c = this.top; if (!c || !c.preview) { if (!auto) toast('No preview for this one'); return; }
+    if (!this.audio) this.audio = new Audio();
+    const a = this.audio;
+    if (!auto && a.dataset.id === c.id && !a.paused) { a.pause(); this.listening = false; this.icon(false); return; }
+    a.dataset.id = c.id; if (a.src !== c.preview) a.src = c.preview;
+    a.play().then(() => { this.listening = true; this.icon(true); }).catch(() => this.icon(false));
+    a.onended = () => this.icon(false);
+  },
+  icon(on) {
+    if ($('#shear')) $('#shear').innerHTML = svg(on ? 'pause' : 'play', 26, on ? 2.6 : 2, on ? 'none' : 'currentColor');
+    const h = $('#sdeck') && $('#sdeck').lastElementChild && $('#sdeck').lastElementChild.querySelector('.play-hint');
+    if (h) h.innerHTML = svg(on ? 'pause' : 'play', 18, on ? 2.6 : 2, on ? 'none' : 'currentColor');
+  },
+  stop() { if (this.audio) this.audio.pause(); this.icon(false); },
+  async fling(dir) {
+    const c = this.top, d = $('#sdeck'); if (!c || !d) return;
+    tick();
+    const el = d.lastElementChild;
+    el.classList.remove('drag');
+    el.style.transform = `translateX(${dir * window.innerWidth * 1.2}px) rotate(${dir * 24}deg)`;
+    el.style.opacity = '0';
+    this.saw(c.id);
+    if (this.audio) this.audio.pause();
+    setTimeout(() => this.next(), 220);
+    if (dir > 0) {
+      const x = await api('/api/party/add', { id: c.id, phone: phoneId, name: myName(true) }).catch(e => ({ error: e.message }));
+      toast(x.error || (x.playing ? 'Playing on the TV' : 'Added to the queue')); partyRefresh();
+    }
+  },
+};
 async function partySearch(q) {
   if (!q.trim()) return;
   const box = $('#pres'); box.innerHTML = '<div class="muted" style="padding:6px 4px">Searching…</div>';

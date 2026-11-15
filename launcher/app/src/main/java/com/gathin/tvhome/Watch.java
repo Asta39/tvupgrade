@@ -408,6 +408,31 @@ final class Watch {
         }
     }
 
+    /**
+     * Continue watching for the phone: the titles played from it since {@code since} (ms), newest first, each with
+     * a fresh play id. Before the list existed only "recent" was kept, so that one counts too.
+     */
+    static JSONArray continueList(Context ctx, long since) {
+        JSONObject s = Stay.json(ctx);
+        JSONArray list = s.optJSONArray("continue");
+        if (list == null) {
+            list = new JSONArray();
+            if (s.optJSONObject("recent") != null) list.put(s.optJSONObject("recent"));
+        }
+        JSONArray out = new JSONArray();
+        for (int i = 0; i < list.length(); i++) {
+            JSONObject o = list.optJSONObject(i);
+            if (o == null || o.optLong("at") < since) continue;
+            try {
+                out.put(new JSONObject().put("title", o.optString("title")).put("poster", o.optString("poster"))
+                        .put("pkg", o.optString("pkg")).put("at", o.optLong("at"))
+                        .put("id", again(o.optString("pkg"), o.optString("link"), o.optString("title"), o.optString("poster"))));
+            } catch (Exception ignored) {
+            }
+        }
+        return out;
+    }
+
     /** A fresh play id for a saved title (the phone's Up next), so it plays through the same checked path. */
     static String again(String pkg, String link, String title, String poster) {
         return remember(pkg, link, title, poster);
@@ -417,8 +442,16 @@ final class Watch {
     private static void recent(Context ctx, String[] l) {
         try {
             JSONObject s = Stay.json(ctx);
-            s.put("recent", new JSONObject().put("title", l[2]).put("poster", l[3]).put("pkg", l[0]).put("link", l[1])
-                    .put("at", System.currentTimeMillis()));
+            JSONObject item = new JSONObject().put("title", l[2]).put("poster", l[3]).put("pkg", l[0]).put("link", l[1])
+                    .put("at", System.currentTimeMillis());
+            s.put("recent", item);
+            // Continue watching: the last ten titles, newest first, each title once.
+            JSONArray old = s.optJSONArray("continue"), list = new JSONArray().put(item);
+            for (int i = 0; old != null && i < old.length() && list.length() < 10; i++) {
+                JSONObject o = old.optJSONObject(i);
+                if (o != null && !o.optString("title").equals(l[2])) list.put(o);
+            }
+            s.put("continue", list);
             Stay.write(ctx, s);
         } catch (Exception ignored) {
         }

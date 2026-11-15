@@ -56,6 +56,8 @@ final class Party {
         }
     });
     private static final List<JSONObject> queue = new ArrayList<>();
+    /** The last ten songs that played, newest first, for the phone's Recently played (tap one to play it again). */
+    private static final List<JSONObject> played = new ArrayList<>();
     private static JSONObject now;
     /** When the current song was started, and whether Spotify has been seen playing it yet. */
     private static long startedAt;
@@ -99,6 +101,10 @@ final class Party {
             for (JSONObject t : queue) q.put(view(t, phone));
             JSONObject o = new JSONObject().put("player", player(ctx) == null ? "" : label(ctx, player(ctx))).put("queue", q);
             if (now != null) o.put("now", view(now, phone).put("waiting", !seen && System.currentTimeMillis() - startedAt > 15_000));
+            JSONArray h = new JSONArray();
+            for (JSONObject t : played) h.put(new JSONObject().put("id", t.optString("id")).put("title", t.optString("title"))
+                    .put("artist", t.optString("artist")).put("art", t.optString("art")).put("by", t.optString("by")));
+            o.put("history", h);
             return o;
         }
     }
@@ -126,11 +132,71 @@ final class Party {
             if (title.isEmpty() || !seenSongs.add(plain(title) + "|" + plain(artist))) continue;
             JSONObject track = new JSONObject().put("id", String.valueOf(t.optLong("trackId"))).put("title", title)
                     .put("artist", artist).put("art", t.optString("artworkUrl100", "").replace("100x100bb", "300x300bb"))
-                    .put("duration", t.optLong("trackTimeMillis"));
+                    .put("duration", t.optLong("trackTimeMillis")).put("preview", t.optString("previewUrl"));
             FOUND.put(track.optString("id"), track);
             out.put(track);
         }
         return new JSONObject().put("results", out);
+    }
+
+    /**
+     * Songs for the phone's swipe deck. With a seed (an artist or a genre) they come from a search for it; without
+     * one, from this country's top songs on iTunes (the US chart if it has none). Each card has a 30-second preview.
+     */
+    static JSONObject discover(String seed) throws Exception {
+        String country = Locale.getDefault().getCountry();
+        if (!country.matches("[A-Z]{2}")) country = "US";
+        JSONArray out = new JSONArray();
+        seed = seed == null ? "" : seed.trim();
+        if (seed.length() > 100) seed = seed.substring(0, 100);
+        if (!seed.isEmpty()) {
+            JSONArray items = new JSONObject(http("https://itunes.apple.com/search?media=music&entity=song&limit=50&country=" + country
+                    + "&term=" + URLEncoder.encode(seed, "UTF-8"))).optJSONArray("results");
+            Set<String> seenSongs = new HashSet<>();
+            for (int i = 0; items != null && i < items.length(); i++) {
+                JSONObject t = items.getJSONObject(i);
+                String title = t.optString("trackName"), artist = t.optString("artistName");
+                if (title.isEmpty() || !seenSongs.add(plain(title) + "|" + plain(artist))) continue;
+                out.put(card(String.valueOf(t.optLong("trackId")), title, artist, t.optString("artworkUrl100", "").replace("100x100bb", "600x600bb"),
+                        t.optLong("trackTimeMillis"), t.optString("previewUrl"), t.optString("primaryGenreName")));
+            }
+        } else {
+            JSONArray entries = null;
+            for (String cc : new String[]{country.toLowerCase(Locale.ROOT), "us"}) {
+                try {
+                    entries = new JSONObject(http("https://itunes.apple.com/" + cc + "/rss/topsongs/limit=50/json"))
+                            .getJSONObject("feed").optJSONArray("entry");
+                } catch (Exception ignored) {
+                }
+                if (entries != null && entries.length() > 5) break;
+            }
+            for (int i = 0; entries != null && i < entries.length(); i++) {
+                JSONObject e = entries.getJSONObject(i);
+                JSONArray imgs = e.optJSONArray("im:image"), links = e.optJSONArray("link");
+                String art = imgs == null ? "" : imgs.getJSONObject(imgs.length() - 1).optString("label").replaceAll("/\\d+x\\d+bb", "/600x600bb");
+                String preview = "";
+                long ms = 0;
+                for (int k = 0; links != null && k < links.length(); k++) {
+                    JSONObject a = links.getJSONObject(k).optJSONObject("attributes");
+                    if (a != null && a.optString("type").startsWith("audio")) {
+                        preview = a.optString("href");
+                        ms = a.optLong("im:duration");
+                    }
+                }
+                String id = e.getJSONObject("id").getJSONObject("attributes").optString("im:id");
+                JSONObject cat = e.optJSONObject("category");
+                out.put(card(id, e.getJSONObject("im:name").optString("label"), e.getJSONObject("im:artist").optString("label"), art, ms, preview,
+                        cat == null ? "" : cat.getJSONObject("attributes").optString("label")));
+            }
+        }
+        return new JSONObject().put("cards", out);
+    }
+
+    private static JSONObject card(String id, String title, String artist, String art, long ms, String preview, String genre) throws Exception {
+        JSONObject track = new JSONObject().put("id", id).put("title", title).put("artist", artist).put("art", art)
+                .put("duration", ms).put("preview", preview).put("genre", genre);
+        FOUND.put(id, new JSONObject(track.toString()).put("art", art.replace("600x600bb", "300x300bb")));
+        return track;
     }
 
     /** Adds a song a search found. Each phone's songs take turns with everyone else's. */
@@ -229,6 +295,18 @@ final class Party {
                 }
             }
             now = t;
+            // Recently played: this song once, at the top, and it can be added again from there.
+            for (int i = played.size() - 1; i >= 0; i--) if (played.get(i).optString("id").equals(t.optString("id"))) played.remove(i);
+            played.add(0, t);
+            while (played.size() > 10) played.remove(played.size() - 1);
+            try {
+                JSONObject again = new JSONObject(t.toString());
+                again.remove("by");
+                again.remove("phone");
+                again.remove("round");
+                FOUND.put(t.optString("id"), again);
+            } catch (Exception ignored) {
+            }
             startedAt = System.currentTimeMillis();
             seen = false;
             startedTitle = null;

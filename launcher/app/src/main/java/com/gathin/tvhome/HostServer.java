@@ -308,6 +308,26 @@ final class HostServer {
                 json(out, 200, gp);
                 return;
             // ---- party mode: a shared music queue on the TV's Spotify (Party)
+            case "GET /api/continue":
+                if (!host && !guestRemote()) break;
+                json(out, 200, new JSONObject().put("items", continueWatching(host)));
+                return;
+            case "POST /api/party/discover":
+                if (!host && !guestRemote()) break;
+                try {
+                    json(out, 200, Party.discover(body.optString("seed")));
+                } catch (java.io.IOException e) {
+                    json(out, 200, new JSONObject().put("error", "Song search isn’t answering. Try again."));
+                }
+                return;
+            case "POST /api/party/replay":
+                if (!host && !guestRemote()) break;
+                json(out, 200, Party.add(ctx, body.optString("id"), body.optString("name"), body.optString("phone")));
+                return;
+            case "POST /api/ime":
+                if (!host && !guestRemote()) break;
+                json(out, 200, ime(body));
+                return;
             case "POST /api/party":
                 if (!host && !guestRemote()) break;
                 json(out, 200, Party.state(ctx, body.optString("phone")));
@@ -563,18 +583,34 @@ final class HostServer {
         if (plan != null) o.put("tonight", plan);
         JSONArray trending = Dashboard.trending(ctx);
         if (trending != null) o.put("trending", trending);
-        // Up next: guests see only what was played during their stay, so the next guests never see it; the host always.
-        Stay stay = Stay.load(ctx);
-        JSONObject r = Stay.json(ctx).optJSONObject("recent");
-        if (r != null && (host || stay.staying() && r.optLong("at") >= stay.arrive.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli())) {
-            String id = Watch.again(r.optString("pkg"), r.optString("link"), r.optString("title"), r.optString("poster"));
-            o.put("recent", new JSONObject().put("title", r.optString("title")).put("poster", r.optString("poster")).put("id", id)
-                    .put("app", label(r.optString("pkg"))));
+        JSONArray cont = continueWatching(host);
+        if (cont.length() > 0) {
+            o.put("continue", cont);
+            JSONObject r = cont.getJSONObject(0);
+            o.put("recent", new JSONObject(r.toString()));
         }
         JSONObject music = Party.current();
         if (music != null) o.put("music", new JSONObject().put("title", music.optString("title")).put("artist", music.optString("artist"))
                 .put("art", music.optString("art")).put("by", music.optString("by")).put("next", Party.queued()));
         return o;
+    }
+
+    /**
+     * Continue watching, newest first. Guests see only what was played during their stay (from the check-in day), or
+     * in the last twelve hours when no stay is set, so the next guests never see it; the host sees everything.
+     */
+    private JSONArray continueWatching(boolean host) throws Exception {
+        Stay stay = Stay.load(ctx);
+        long since = host ? 0 : stay.staying()
+                ? stay.arrive.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                : System.currentTimeMillis() - 12 * 3600_000L;
+        JSONArray list = Watch.continueList(ctx, since);
+        for (int i = 0; i < list.length(); i++) {
+            JSONObject o = list.getJSONObject(i);
+            o.put("app", label(o.optString("pkg")));
+            o.remove("pkg");
+        }
+        return list;
     }
 
     private String label(String pkg) {
@@ -958,6 +994,56 @@ final class HostServer {
         Integer code = KEYS.get(k);
         if (code == null) return new JSONObject().put("error", "Unknown key.");
         return new JSONObject().put("ok", key(code));
+    }
+
+    /**
+     * Typing from the phone's own keyboard. {"check":true} says whether the TV is showing its on-screen keyboard (a text
+     * box has focus); {"text":"…"} types into it, {"del":n} deletes n characters, {"enter":true} submits it.
+     */
+    private JSONObject ime(JSONObject b) throws Exception {
+        if (b.optBoolean("check")) {
+            String d = tvShell("dumpsys input_method | grep -E 'mInputShown=|inputType=0x' | head -2");
+            if (d == null) return new JSONObject().put("error", "The TV isn't answering.");
+            boolean shown = d.contains("mInputShown=true");
+            // Password boxes (text variation 0x80, 0xe0, number 0x10): the phone hides what's typed.
+            boolean secret = false;
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile("inputType=0x([0-9a-f]+)").matcher(d);
+            if (m.find()) {
+                int t = (int) Long.parseLong(m.group(1), 16), cls = t & 0xf, var = t & 0xff0;
+                secret = cls == 1 && (var == 0x80 || var == 0xe0 || var == 0x90) || cls == 2 && var == 0x10;
+            }
+            return new JSONObject().put("shown", shown).put("secret", secret);
+        }
+        String text = b.optString("text", "");
+        if (!text.isEmpty()) {
+            if (text.length() > 200) return new JSONObject().put("error", "That's too long.");
+            // input text: %s is a space; everything goes in single quotes for the shell.
+            String arg = text.replace("%", "\\%").replace(" ", "%s").replace("'", "'\\''");
+            return new JSONObject().put("ok", tvShell("input text '" + arg + "'") != null);
+        }
+        int del = Math.min(100, b.optInt("del", 0));
+        if (del > 0) {
+            StringBuilder c = new StringBuilder("input keyevent");
+            for (int i = 0; i < del; i++) c.append(" 67");
+            // The keyboard app takes deletes a moment after they're sent: wait, so the next letters don't arrive first.
+            c.append("; sleep ").append(del > 5 ? "0.4" : "0.15");
+            return new JSONObject().put("ok", tvShell(c.toString()) != null);
+        }
+        if (b.optBoolean("enter")) return new JSONObject().put("ok", key(66));
+        return new JSONObject().put("error", "Nothing to type.");
+    }
+
+    private synchronized String tvShell(String command) {
+        for (int attempt = 0; attempt < 2; attempt++) {
+            try {
+                if (adb == null) adb = LocalAdb.connect(ctx, 3000);
+                return adb.shell(command);
+            } catch (Exception e) {
+                if (adb != null) adb.close();
+                adb = null;
+            }
+        }
+        return null;
     }
 
     private synchronized boolean key(int code) {
