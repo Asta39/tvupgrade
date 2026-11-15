@@ -142,14 +142,22 @@ stays minimal; everything rich lives on the phone.
 |---|---|
 | ![Phone Home: today, weather by the hour](screenshots/phone-home.jpg) | ![Phone Home: around you and what's popular](screenshots/phone-home-more.jpg) |
 
-- **Today:** pick up what you were watching (*Up next*, one tap resumes it on the TV), and the song playing for the
-  room.
+- **Today:** the song playing for the room.
 - **Your stay and the door code**, with a countdown to check-out on the last day.
 - **Weather by the hour** for the next six hours, with the chance of rain.
 - **Around you:** the Wi-Fi with a Copy button, sunrise or sunset on a little sun arc, and *Tonight*: three ideas
   for the evening nearby, from the host's own Groq key (optional).
 - **Popular on your TV:** posters of what's trending on the apps this TV has. Tap one and it plays on the TV.
+- **Continue watching:** the last ten titles started from a phone, newest first. Tap one and it plays again. Guests
+  only see what was played during their own stay. The Watch tab has the same row, under *Your picks*.
 - **Open on the TV:** the allowed apps, one tap each.
+
+### Type with your phone's keyboard
+
+When a text box on the TV opens its on-screen keyboard (a search, a sign-in), a typing bar slides up on every phone
+that has the page open. What you type appears on the TV as you go, backspace included, and **Go** submits it.
+Password boxes stay hidden on the phone. Apps that draw their own keyboard instead of Android's (YouTube's search,
+for one) can't be typed into this way.
 
 ### Watch together
 
@@ -168,16 +176,26 @@ No match after a while? *Most liked so far* lists the room's favourites, best fi
 ### Music for the room
 
 Guests search songs on the **Music** tab and add them to one shared queue that plays on the TV. Songs take turns
-between phones (at most six waiting each), so one person can't take over the night. Anyone can skip; you can only
-remove your own songs. The first song opens StandBy with the lyrics.
+between phones (at most six waiting each), so one person can't take over the night. You can only remove your own
+songs. The first song opens StandBy with the lyrics.
+
+- **Playback for everyone:** a progress bar with the time left, **restart**, **play/pause** and **next** right under
+  *Now playing*, so nobody has to find the remote. The remote's media keys still work.
+- **Swipe for songs:** a swipe deck like the one for shows. Right adds the song to the queue, left skips it, and a
+  tap plays a 30-second preview on your own phone. Pick *Top songs*, a genre (Afrobeats, Amapiano, Bongo, Hip-hop and
+  more), or *For you*, which follows the artists the room is already playing.
+- **Recently played:** the last ten songs, under the queue. Tap one to queue it again.
+- A dropped Wi-Fi moment doesn't lose a song: adds retry on their own, and the TV ignores a repeat.
 
 <img src="screenshots/phone-music.jpg" alt="Music: now playing, search and the shared queue" width="450">
 
 No keys and no accounts: search uses Apple's public iTunes song search, and songs play through **Bitchord**
-(YouTube Music) when the TV has it, else YouTube. Each song is checked as it starts: if Bitchord picked another
-song, the TV switches to the exact one. The queue follows what's actually playing, and when Bitchord tries to slip
-in its own pick between songs, it's paused at once and the next song in the queue starts. Spotify's TV app was
-tried first; it accepts no play requests from other apps.
+(YouTube Music) when the TV has it, else YouTube. Bitchord plays in the background: the TV starts its player
+service directly, so the app never comes up over what's on screen. Each queued song's exact video is looked up
+while it waits. A song only counts as started when its title and artist match; if Bitchord's search picks a remix
+or another track on the album, the TV switches to the exact video at once, and Bitchord is paused as each song ends
+so its own picks never play between songs. Spotify's TV app was tried first; it accepts no play requests from other
+apps.
 
 ### The arrival show
 
@@ -186,11 +204,25 @@ pictures: their names, the place, the Wi-Fi with a code to join from the camera,
 stay and door code, and how the phone works as the remote. It ends on the welcome screen, plays once per stay, and
 the host can switch it off or preview it from **Host › Settings**.
 
+### View as guest
+
+The host page has a **View as guest** button: your phone shows exactly what a guest's phone sees, with a *Back to
+host* pill at the top. No need to sign out.
+
 ### YouTube means TizenTube
 
 Wherever the launcher opens YouTube (search results, posters, matches, music), it uses
 TizenTube when it's installed, and the original YouTube app when it
 isn't. This works on any TV.
+
+## The phone remote at home
+
+Guest mode isn't needed for the phone page. In **Home** mode, the last step of setup shows a QR code, and
+**Control Center › Phone remote** shows it again any time. The first phone to scan it picks a PIN and becomes the
+host. After that, anyone in the house on the same Wi-Fi scans it and gets **Remote** (with the phone keyboard),
+**Watch**, **Watch together** and **Music**, with every app on the TV and none of the rental parts (Wi-Fi card, door
+code, house rules, check-out). The host can keep it to their own phone with **Household remote** on the host page.
+Kids mode stays with the host.
 
 ## What's on screen
 
