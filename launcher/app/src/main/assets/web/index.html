@@ -172,7 +172,12 @@
     background: rgba(255,255,255,.12); color: inherit; border: 0; outline: none; }
   .typebar .pill { flex: 0 0 auto; }
   .card .play-hint { position: absolute; top: 16px; right: 16px; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center;
-    background: rgba(0,0,0,.4); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+    background: rgba(0,0,0,.5); }
+  /* song cards: no blur behind the tags (it repaints every frame of a drag), their own layer, the next one waiting under */
+  .card.song { transform: translate3d(0,0,0); backface-visibility: hidden; contain: layout paint; }
+  .card.song .tags span { -webkit-backdrop-filter: none; backdrop-filter: none; background: rgba(0,0,0,.45); }
+  .card.song.under { transform: scale(.94) translate3d(0,10px,0); opacity: .7; pointer-events: none; }
+  .card.song.gone { pointer-events: none; }
   /* the swipe deck */
   .deck { position: relative; height: clamp(340px, calc(100dvh - 330px), 560px); margin-top: 12px; touch-action: pan-y; }
   .card { position: absolute; inset: 0; border-radius: 26px; overflow: hidden; background: #111 center/cover no-repeat;
@@ -510,7 +515,6 @@ function homeView() {
     <h1>${hello}</h1><p class="sub">${line}</p>
     ${signedReminder()}
     <div id="dtoday"></div>
-    <div id="dcont"></div>
     <div class="grid2">
       ${s.staying ? stayTile() : ''}
       ${s.door_code ? `<div class="tile glass">${svg('lock', 22)}<span class="label">Door code</span><span class="big" style="letter-spacing:.08em">${esc(s.door_code)}</span></div>` : ''}
@@ -522,6 +526,7 @@ function homeView() {
           ${s.wifi_password ? `<button class="pill" id="copy">Copy</button>` : ''}</div></div>` : ''}
       <div class="grid2" id="daround"></div></div>
     <div id="dpopular"></div>
+    <div id="dcont"></div>
     ${s.apps.length ? `<div class="section"><span class="eyebrow">Open on the TV</span><div class="apps">
       ${s.apps.map(a => `<button class="app" data-app="${esc(a.pkg)}"><img src="/api/icon?pkg=${encodeURIComponent(a.pkg)}" alt=""><span>${esc(a.label)}</span></button>`).join('')}</div></div>` : ''}
     <p style="text-align:center;margin-top:26px"><button class="link" id="hostin">Host sign-in</button></p>`;
@@ -736,7 +741,6 @@ function watchView() {
   app.innerHTML = `<h1>Watch</h1>
     <form class="field glass" id="watchf" style="margin-top:10px">${svg('search', 18, 2.2)}<input id="wq" placeholder="Search shows and films" aria-label="Search shows and films" enterkeyhint="search"></form>
     <div class="results" id="wres"></div>
-    <div id="wcont"></div>
     <button class="together glass" id="together">${svg('people', 26)}<span class="two-line"><b>Watch together</b><small>Everyone swipes on their phone. When you all like the same one, the TV shows it.</small></span></button>
     <div class="section"><div style="display:flex;justify-content:space-between;align-items:baseline;padding:0 4px">
       <span class="eyebrow">Swipe to find something</span><span class="muted" style="font-size:13px" id="deckhint">Right to like · left to skip</span></div>
@@ -747,6 +751,7 @@ function watchView() {
         <button class="round glass big" id="dplay" aria-label="Play now" style="background:#fff;color:#000">${svg('play', 26, 2, 'currentColor')}</button>
         <button class="round glass" id="dyes" aria-label="Like" style="color:#ff6b8a">${svg('heart', 26, 2.2)}</button></div></div>
     <div class="section" id="picksec" ${picks.length ? '' : 'hidden'}><span class="eyebrow">Your picks</span><div class="shelf" id="picks"></div></div>
+    <div id="wcont"></div>
     <div class="section" id="acctsec" hidden><span class="eyebrow">Your accounts</span><div class="list glass" id="accts"></div>
       <div class="note">Sign in with the app’s own code, on your phone. Your password never goes through this TV.</div></div>
     ${s.apps.length ? `<div class="section"><span class="eyebrow">Apps</span><div class="apps">
@@ -1119,7 +1124,6 @@ function partyView() {
     <div class="now glass" id="pnow" style="margin-top:16px" hidden></div>
     <form class="field glass" id="pf" style="margin-top:14px">${svg('search', 18, 2.2)}<input id="pq" placeholder="Search songs or artists" aria-label="Search songs" enterkeyhint="search"></form>
     <div class="results" id="pres"></div>
-    <div class="section" id="pqsec"><span class="eyebrow">Up next</span><div class="list glass" id="pqueue"><div class="row muted">Nothing queued yet. Search for a song.</div></div></div>
     <div class="section"><div style="display:flex;justify-content:space-between;align-items:baseline;padding:0 4px">
       <span class="eyebrow">Swipe for songs</span><span class="muted" style="font-size:13px">Right adds it · tap to hear it</span></div>
       <div class="chips" id="schips" style="flex-wrap:nowrap;overflow-x:auto;padding:2px 4px 4px;scrollbar-width:none">${SONG_SEEDS.map(([l, q], i) =>
@@ -1129,6 +1133,7 @@ function partyView() {
         <button class="round glass" id="sno" aria-label="Skip">${svg('x', 26, 2.4)}</button>
         <button class="round glass big" id="shear" aria-label="Hear a preview" style="background:#fff;color:#000">${svg('play', 26, 2, 'currentColor')}</button>
         <button class="round glass" id="syes" aria-label="Add to the queue" style="color:var(--green)">${svg('plus', 28, 2.4)}</button></div></div>
+    <div class="section" id="pqsec"><span class="eyebrow">Up next</span><div class="list glass" id="pqueue"><div class="row muted">Nothing queued yet. Search for a song.</div></div></div>
     <div class="section" id="phsec" hidden><span class="eyebrow">Recently played</span><div class="list glass" id="phist"></div></div>
     ${state.host ? `<div class="section"><button class="btn glass red" id="pstop">Clear the queue</button></div>` : ''}`;
   songDeck.start();
@@ -1154,33 +1159,35 @@ async function partyRefresh() {
     $('#plyrics').onclick = () => { tick(); api('/api/party/lyrics', {}).then(() => toast('Lyrics on the TV')).catch(e => toast(e.message)); };
     backdrop(p.now.art);
   } else box.hidden = true;
-  $('#pqueue').innerHTML = p.queue.length ? p.queue.map((t, i) => `<div class="row" style="justify-content:flex-start;gap:12px">
+  const setHtml = (el, h) => { if (el._h !== h) { el._h = h; el.innerHTML = h; return true; } return false; };
+  const qHtml = p.queue.length ? p.queue.map((t, i) => `<div class="row" style="justify-content:flex-start;gap:12px">
       <span class="muted" style="width:18px;text-align:right;font-size:14px">${i + 1}</span>
       ${t.art ? `<img class="icon" style="width:40px;height:40px" src="${esc(t.art)}" alt="">` : ''}
       <span class="two-line" style="flex:1 1 auto"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}</span><small>${esc(t.artist)} · ${esc(t.mine ? 'you' : t.by)}</small></span>
       ${t.mine || state.host ? `<button class="rule-x" data-prm="${esc(t.id)}" aria-label="Remove ${esc(t.title)}">−</button>` : ''}</div>`).join('')
     : `<div class="row muted">${p.now ? 'Nothing after this song. Add one!' : 'Nothing queued yet. Search for a song.'}</div>`;
+  const qNew = setHtml($('#pqueue'), qHtml);
   // Recently played: the last ten, newest first. Tap one to add it to the queue again.
   const hist = p.history || [];
   songDeck.heard = [p.now, ...p.queue, ...hist].filter(Boolean).map(t => t.artist);
   $('#phsec').hidden = !hist.length;
-  $('#phist').innerHTML = hist.map(t => `<button class="row" data-again="${esc(t.id)}" style="justify-content:flex-start;gap:12px;width:100%;text-align:left">
+  const hNew = setHtml($('#phist'), hist.map(t => `<button class="row" data-again="${esc(t.id)}" style="justify-content:flex-start;gap:12px;width:100%;text-align:left">
       ${t.art ? `<img class="icon" style="width:40px;height:40px" src="${esc(t.art)}" alt="">` : ''}
       <span class="two-line" style="flex:1 1 auto"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}</span><small>${esc(t.artist)}</small></span>
-      <span class="muted" aria-label="Play again">${svg('r10', 20)}</span></button>`).join('');
-  $('#phist').querySelectorAll('[data-again]').forEach(b => b.onclick = async () => {
+      <span class="muted" aria-label="Play again">${svg('r10', 20)}</span></button>`).join(''));
+  if (hNew) $('#phist').querySelectorAll('[data-again]').forEach(b => b.onclick = async () => {
     tick();
     const x = await api('/api/party/replay', { id: b.dataset.again, phone: phoneId, name: myName(true) }).catch(e => ({ error: e.message }));
     toast(x.error || (x.playing ? 'Playing it again' : 'Added to the queue again')); partyRefresh();
   });
-  $('#pqueue').querySelectorAll('[data-prm]').forEach(b => b.onclick = async () => { tick(); const r = await api('/api/party/remove', { id: b.dataset.prm, phone: phoneId }).catch(e => ({ error: e.message })); if (r.error) toast(r.error); partyRefresh(); });
+  if (qNew) $('#pqueue').querySelectorAll('[data-prm]').forEach(b => b.onclick = async () => { tick(); const r = await api('/api/party/remove', { id: b.dataset.prm, phone: phoneId }).catch(e => ({ error: e.message })); if (r.error) toast(r.error); partyRefresh(); });
 }
 // The song deck: swipe right to add a song to the room's queue, left to skip; tap the card (or ▶) for a 30-second
 // preview on this phone. "For you" searches the artists already playing in the room.
 const SONG_SEEDS = [['For you', '*'], ['Top songs', ''], ['Afrobeats', 'afrobeats'], ['Amapiano', 'amapiano'], ['Hip-hop', 'hip hop'],
   ['R&B', 'r&b'], ['Pop', 'pop hits'], ['Bongo', 'bongo flava'], ['Gospel', 'gospel'], ['Reggae', 'reggae'], ['Dance', 'dance'], ['Rock', 'rock']];
 const songDeck = {
-  queue: [], top: null, group: { songs: true }, seedIx: 0, loading: false, heard: [], audio: null, listening: false,
+  queue: [], top: null, group: { songs: true }, seedIx: 0, loading: false, heard: [], audio: null, listening: false, adding: Promise.resolve(),
   seen() { try { return JSON.parse(localStorage.getItem('tvhome-songseen') || '[]'); } catch (e) { return []; } },
   saw(id) { try { localStorage.setItem('tvhome-songseen', JSON.stringify([id, ...this.seen().filter(x => x !== id)].slice(0, 400))); } catch (e) {} },
   start() {
@@ -1201,40 +1208,58 @@ const songDeck = {
     const a = [...new Set(this.heard.filter(Boolean))];
     return a.length ? a[Math.floor(Math.random() * a.length)] : '';
   },
-  async fill() {
+  async fill(tries = 0) {
     if (this.loading) return; this.loading = true;
+    const ix = this.seedIx;
     try {
-      const ix = this.seedIx, r = await api('/api/party/discover', { seed: this.seed() });
+      const r = await api('/api/party/discover', { seed: this.seed() });
       if (ix !== this.seedIx) { this.loading = false; return this.fill(); }
       const seen = this.seen();
       const fresh = (r.cards || []).filter(c => !seen.includes(c.id) && !this.queue.some(q => q.id === c.id) && (!this.top || this.top.id !== c.id));
-      fresh.sort(() => Math.random() - .5).slice(0, 15).forEach(c => this.queue.push(c));
+      fresh.sort(() => Math.random() - .5).slice(0, 15).forEach(c => { this.queue.push(c); const im = new Image(); im.src = c.art; });
       if (r.error && !fresh.length && !this.top) this.msg(r.error);
-    } catch (e) { if (!this.top) this.msg(e.message); }
+    } catch (e) {
+      // A Wi-Fi blip: try again quietly before saying anything.
+      this.loading = false;
+      if (tries < 2) return setTimeout(() => this.fill(tries + 1), 1200 * (tries + 1));
+      if (!this.top) this.msg('Can’t reach the TV. Check you’re on its Wi-Fi.');
+    }
     this.loading = false;
     if (!this.top) this.next();
   },
   msg(t) { const d = $('#sdeck'); if (d) d.innerHTML = `<div class="deck-msg glass">${esc(t)}</div>`; },
+  // The card underneath slides up to become the top one: nothing is rebuilt, so its picture is already there.
   next() {
     const d = $('#sdeck'); if (!d) return;
     this.top = this.queue.shift() || null;
-    if (this.queue.length < 4) this.fill();
-    if (!this.top) { if (!this.loading) this.msg('No more here. Try another chip or a search.'); return; }
-    d.innerHTML = '';
-    if (this.queue[0]) d.appendChild(this.cardEl(this.queue[0], true));
-    d.appendChild(this.cardEl(this.top, false));
+    if (this.queue.length < 5) this.fill();
+    d.querySelectorAll('.card.gone').forEach(x => setTimeout(() => x.remove(), 400));
+    d.querySelectorAll('.deck-msg').forEach(x => x.remove());
+    if (!this.top) { if (!this.loading) this.msg('No more here. Try another chip or a search.'); else this.msg('Finding songs…'); return; }
+    let topEl = d.querySelector('.card.under');
+    if (!topEl || topEl.dataset.id !== this.top.id) { if (topEl) topEl.remove(); topEl = this.cardEl(this.top); d.appendChild(topEl); }
+    topEl.classList.remove('under'); topEl.style.transform = ''; topEl.style.opacity = ''; topEl.style.transition = '';
+    this.arm(topEl);
+    const nx = this.queue[0];
+    if (nx) { const u = this.cardEl(nx); u.classList.add('under'); d.insertBefore(u, topEl); }
     if (this.listening) this.hear(true);
   },
-  cardEl(c, back) {
+  cardEl(c) {
     const el = document.createElement('div');
-    el.className = 'card'; el.style.backgroundImage = `url("${c.art}")`;
-    if (back) { el.style.transform = 'scale(.94) translateY(10px)'; el.style.opacity = '.7'; }
+    el.className = 'card song'; el.dataset.id = c.id; el.style.backgroundImage = `url("${c.art}")`;
     el.innerHTML = `<div class="shade"></div><span class="stamp like">ADD</span><span class="stamp nope">NOPE</span>
       ${c.preview ? `<span class="play-hint">${svg('play', 18, 2, 'currentColor')}</span>` : ''}
       <div class="meta">${c.genre ? `<div class="tags"><span>${esc(c.genre)}</span></div>` : ''}
       <b>${esc(c.title)}</b><small>${esc(c.artist)}${c.duration ? ' · ' + fmt(c.duration) : ''}</small></div>`;
-    if (!back) { deck.drag.call(this, el); el.addEventListener('click', () => this.hear()); }
     return el;
+  },
+  arm(el) {
+    if (el.dataset.armed) return; el.dataset.armed = '1';
+    deck.drag.call(this, el);
+    let moved = false;
+    el.addEventListener('pointerdown', e => { moved = false; el._x = e.clientX; el._y = e.clientY; });
+    el.addEventListener('pointermove', e => { if (Math.abs(e.clientX - el._x) + Math.abs(e.clientY - el._y) > 10) moved = true; });
+    el.addEventListener('click', () => { if (!moved && !el.classList.contains('gone')) this.hear(); });
   },
   hear(auto) {
     const c = this.top; if (!c || !c.preview) { if (!auto) toast('No preview for this one'); return; }
@@ -1247,24 +1272,42 @@ const songDeck = {
   },
   icon(on) {
     if ($('#shear')) $('#shear').innerHTML = svg(on ? 'pause' : 'play', 26, on ? 2.6 : 2, on ? 'none' : 'currentColor');
-    const h = $('#sdeck') && $('#sdeck').lastElementChild && $('#sdeck').lastElementChild.querySelector('.play-hint');
-    if (h) h.innerHTML = svg(on ? 'pause' : 'play', 18, on ? 2.6 : 2, on ? 'none' : 'currentColor');
+    const top = $('#sdeck') && $('#sdeck').querySelector('.card:not(.under):not(.gone) .play-hint');
+    if (top) top.innerHTML = svg(on ? 'pause' : 'play', 18, on ? 2.6 : 2, on ? 'none' : 'currentColor');
   },
   stop() { if (this.audio) this.audio.pause(); this.icon(false); },
-  async fling(dir) {
+  fling(dir) {
     const c = this.top, d = $('#sdeck'); if (!c || !d) return;
+    const el = d.querySelector(`.card[data-id="${c.id}"]:not(.under):not(.gone)`); if (!el) return;
+    // Ask for a name before the card flies, never in the middle of it.
+    const name = dir > 0 ? myName(true) : '';
     tick();
-    const el = d.lastElementChild;
-    el.classList.remove('drag');
-    el.style.transform = `translateX(${dir * window.innerWidth * 1.2}px) rotate(${dir * 24}deg)`;
+    el.classList.remove('drag'); el.classList.add('gone');
+    el.style.transform = `translate3d(${dir * window.innerWidth * 1.2}px,0,0) rotate(${dir * 24}deg)`;
     el.style.opacity = '0';
     this.saw(c.id);
     if (this.audio) this.audio.pause();
-    setTimeout(() => this.next(), 220);
-    if (dir > 0) {
-      const x = await api('/api/party/add', { id: c.id, phone: phoneId, name: myName(true) }).catch(e => ({ error: e.message }));
-      toast(x.error || (x.playing ? 'Playing on the TV' : 'Added to the queue')); partyRefresh();
-    }
+    this.next();
+    if (dir > 0) this.add(c, name);
+  },
+  // Adds go one after another and retry through a Wi-Fi blip. The TV ignores a repeat of the same song from this
+  // phone, so a retry after an answer that got lost can't add it twice.
+  add(c, name) {
+    toast('Adding “' + c.title + '”…');
+    this.adding = this.adding.then(async () => {
+      const body = { id: c.id, phone: phoneId, name, card: { title: c.title, artist: c.artist, art: c.art, duration: c.duration } };
+      for (let i = 0; i < 4; i++) {
+        try {
+          const x = await api('/api/party/add', body);
+          toast(x.error || (x.playing ? 'Playing “' + c.title + '” on the TV' : '“' + c.title + '” added to the queue'));
+          partyRefresh(); return;
+        } catch (e) {
+          if (!/fetch|network|load/i.test(e.message)) { toast(e.message); return; }
+          await new Promise(r => setTimeout(r, 800 * (i + 1)));
+        }
+      }
+      toast('Couldn’t reach the TV. “' + c.title + '” wasn’t added.');
+    });
   },
 };
 async function partySearch(q) {

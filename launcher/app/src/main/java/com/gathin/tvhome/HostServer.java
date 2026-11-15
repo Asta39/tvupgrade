@@ -53,7 +53,9 @@ final class HostServer {
     static volatile Runnable onVisit;
 
     private final Context ctx;
-    private final ExecutorService pool = Executors.newFixedThreadPool(4);
+    // Song and show searches wait on the internet for a second or two; enough threads that the phones' quick calls
+    // (the remote, the queue, the keyboard check) never queue behind them.
+    private final ExecutorService pool = Executors.newFixedThreadPool(10);
     private final Handler main = new Handler(Looper.getMainLooper());
     private final SecureRandom random = new SecureRandom();
     private final Map<String, Long> sessions = Collections.synchronizedMap(new HashMap<>());
@@ -342,7 +344,7 @@ final class HostServer {
                 return;
             case "POST /api/party/add":
                 if (!host && !guestRemote()) break;
-                json(out, 200, Party.add(ctx, body.optString("id"), body.optString("name"), body.optString("phone")));
+                json(out, 200, Party.add(ctx, body.optString("id"), body.optString("name"), body.optString("phone"), body.optJSONObject("card")));
                 return;
             case "POST /api/party/remove":
                 if (!host && !guestRemote()) break;
@@ -1002,6 +1004,10 @@ final class HostServer {
      */
     private JSONObject ime(JSONObject b) throws Exception {
         if (b.optBoolean("check")) {
+            // Every open phone asks every 1.5 s: answer from a check made in the last second.
+            synchronized (imeLock) {
+                if (System.currentTimeMillis() - imeAt < 1000 && imeLast != null) return new JSONObject(imeLast.toString());
+            }
             String d = tvShell("dumpsys input_method | grep -E 'mInputShown=|inputType=0x' | head -2");
             if (d == null) return new JSONObject().put("error", "The TV isn't answering.");
             boolean shown = d.contains("mInputShown=true");
@@ -1012,7 +1018,12 @@ final class HostServer {
                 int t = (int) Long.parseLong(m.group(1), 16), cls = t & 0xf, var = t & 0xff0;
                 secret = cls == 1 && (var == 0x80 || var == 0xe0 || var == 0x90) || cls == 2 && var == 0x10;
             }
-            return new JSONObject().put("shown", shown).put("secret", secret);
+            JSONObject o = new JSONObject().put("shown", shown).put("secret", secret);
+            synchronized (imeLock) {
+                imeLast = o;
+                imeAt = System.currentTimeMillis();
+            }
+            return o;
         }
         String text = b.optString("text", "");
         if (!text.isEmpty()) {
@@ -1032,6 +1043,10 @@ final class HostServer {
         if (b.optBoolean("enter")) return new JSONObject().put("ok", key(66));
         return new JSONObject().put("error", "Nothing to type.");
     }
+
+    private final Object imeLock = new Object();
+    private JSONObject imeLast;
+    private long imeAt;
 
     private synchronized String tvShell(String command) {
         for (int attempt = 0; attempt < 2; attempt++) {

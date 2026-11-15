@@ -201,13 +201,33 @@ final class Party {
 
     /** Adds a song a search found. Each phone's songs take turns with everyone else's. */
     static JSONObject add(Context ctx, String id, String name, String phone) throws Exception {
+        return add(ctx, id, name, phone, null);
+    }
+
+    /**
+     * {@code card} is the song as the phone has it, used when the TV no longer remembers that id (it keeps the last
+     * 500 songs it found). Adding the same song twice from one phone answers ok without adding it again, so a phone
+     * can safely retry an add whose answer was lost on the Wi-Fi.
+     */
+    static JSONObject add(Context ctx, String id, String name, String phone, JSONObject card) throws Exception {
         JSONObject found = FOUND.get(id == null ? "" : id);
+        if (found == null && card != null && id != null && id.matches("\\d{1,15}")) {
+            String title = card.optString("title").trim(), artist = card.optString("artist").trim(), art = card.optString("art");
+            if (!title.isEmpty() && title.length() <= 200 && artist.length() <= 200) {
+                found = new JSONObject().put("id", id).put("title", title).put("artist", artist)
+                        .put("art", art.startsWith("https://") && art.length() < 400 ? art : "").put("duration", card.optLong("duration"));
+                FOUND.put(id, found);
+            }
+        }
         if (found == null) return new JSONObject().put("error", "Search again, then add it.");
         if (!installed(ctx)) return new JSONObject().put("error", "This TV has no music player (Bitchord or YouTube).");
         String by = name == null || name.trim().isEmpty() ? "Guest" : name.trim();
         if (by.length() > 24) by = by.substring(0, 24);
         boolean startNow;
         synchronized (LOCK) {
+            if (now != null && now.optString("id").equals(id) && now.optString("phone").equals(phone) && System.currentTimeMillis() - startedAt < 60_000
+                    || queue.stream().anyMatch(t -> t.optString("id").equals(id) && t.optString("phone").equals(phone)))
+                return new JSONObject().put("ok", true).put("already", true);
             if (queue.size() >= MAX_QUEUE) return new JSONObject().put("error", "The queue is full. Try again after a few songs.");
             int mine = 0;
             for (JSONObject t : queue) if (t.optString("phone").equals(phone)) mine++;
