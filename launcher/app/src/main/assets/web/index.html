@@ -306,8 +306,23 @@ function tick() {
   }
   hapticLabel.click();
 }
+// "View as guest": the host's phone leaves its session out, so it sees exactly what a guest's phone sees.
+let asGuest = false;
+function guestPreview(on) {
+  asGuest = on; page = ''; window.scrollTo(0, 0);
+  let b = $('#asguest');
+  if (on && !b) {
+    b = document.createElement('button'); b.id = 'asguest'; b.className = 'btn glass';
+    b.style.cssText = 'position:fixed;top:calc(env(safe-area-inset-top) + 10px);left:50%;transform:translateX(-50%);z-index:60;min-height:40px;padding:0 18px;width:auto;font-size:14px';
+    b.textContent = 'Viewing as guest · Back to host'; b.onclick = () => guestPreview(false);
+    document.body.append(b);
+  }
+  if (!on && b) b.remove();
+  if (!on) page = 'host';
+  load();
+}
 async function api(path, body) {
-  const r = await fetch(path, { method: body ? 'POST' : 'GET', headers: { 'Content-Type': 'application/json', 'X-Session': session },
+  const r = await fetch(path, { method: body ? 'POST' : 'GET', headers: { 'Content-Type': 'application/json', 'X-Session': asGuest ? '' : session },
     body: body ? JSON.stringify(body) : undefined });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(j.error || 'Something went wrong.');
@@ -1224,6 +1239,7 @@ function settingsView(head) {
       <div class="row"><button class="link" id="setpin">Change PIN</button></div></div></div>
     <div class="section"><span class="eyebrow">This TV</span><div class="list glass">
       <div class="row"><span>Address</span><span class="muted">${esc(location.host)}</span></div></div></div>
+    <div class="section"><button class="btn glass" id="viewguest">View as guest</button></div>
     <div class="section"><button class="btn glass red" id="signout">Sign out</button></div>`;
   document.querySelectorAll('[data-app]').forEach(i => i.onchange = () => save({ apps: [...document.querySelectorAll('[data-app]:checked')].map(x => x.dataset.app) }, 'Apps updated'));
   $('#autoout').onchange = e => save({ auto_signout: e.target.checked }, e.target.checked ? 'Guests are signed out after check-out' : 'Automatic sign-out off');
@@ -1236,6 +1252,7 @@ function settingsView(head) {
   $('#arrival').onchange = e => save({ arrival_show: e.target.checked }, e.target.checked ? 'Arrival show on' : 'Arrival show off');
   $('#arrivalplay').onclick = () => { tick(); api('/api/arrival/play', {}).then(() => toast('Playing on the TV')).catch(e => toast(e.message)); };
   $('#setpin').onclick = async () => { try { await api('/api/pin', { pin: $('#newpin').value.trim() }); $('#newpin').value = ''; toast('PIN changed'); } catch (e) { toast(e.message); } };
+  $('#viewguest').onclick = () => guestPreview(true);
   $('#signout').onclick = () => { session = ''; localStorage.removeItem('tvhome-session'); page = ''; load(); };
 }
 
