@@ -366,7 +366,8 @@ function dock(list) {
 const GUEST_PAGES = [['home', 'Home', 'home'], ['remote', 'Remote', 'remote'], ['watch', 'Watch', 'watch'], ['party', 'Music', 'music'], ['guide', 'Guide', 'guide']];
 const HOST_PAGES = [['remote', 'Remote', 'remote'], ['watch', 'Watch', 'watch'], ['party', 'Music', 'music'], ['host', 'Host', 'host']];
 // Music shows whenever the TV has a player for it (Bitchord, TizenTube or YouTube). "together" is a page inside Watch.
-const pagesFor = () => (state.host ? HOST_PAGES : GUEST_PAGES).filter(p => p[0] !== 'party' || state.music);
+// The household (Home mode, not the host) gets the guest pages minus the house guide: it's their own home.
+const pagesFor = () => (state.host ? HOST_PAGES : GUEST_PAGES).filter(p => (p[0] !== 'party' || state.music) && (p[0] !== 'guide' || !state.household || state.host));
 // This phone, for the shared group and queue: a random id and the name the others see.
 const phoneId = (() => { try { let i = localStorage.getItem('tvhome-phone'); if (!i) { i = Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('tvhome-phone', i); } return i; } catch (e) { return 'p' + Math.random(); } })();
 function myName(ask) {
@@ -506,10 +507,10 @@ function signIn() {
 let dash = null;
 function homeView() {
   const s = state;
-  const hello = s.staying && s.names ? `${greeting()}, ${esc(s.names)}` : (s.place ? `Welcome to ${esc(s.place)}` : 'Welcome');
+  const hello = s.household ? greeting() : s.staying && s.names ? `${greeting()}, ${esc(s.names)}` : (s.place ? `Welcome to ${esc(s.place)}` : 'Welcome');
   const line = s.staying ? (s.arriving ? `Check-in from ${esc(s.checkin)}. Make yourselves at home.`
     : s.leaving ? `Check-out today by ${esc(s.checkout)}. Safe travels.`
-    : `Night ${s.night} of ${s.nights} · check-out ${esc(s.checkout_day)} ${esc(s.checkout)}`) : esc(s.about);
+    : `Night ${s.night} of ${s.nights} · check-out ${esc(s.checkout_day)} ${esc(s.checkout)}`) : s.household ? 'Your TV, from your phone.' : esc(s.about);
   app.innerHTML = `
     ${s.place ? `<span class="eyebrow">${esc(s.place)}</span>` : ''}
     <h1>${hello}</h1><p class="sub">${line}</p>
@@ -818,7 +819,7 @@ async function playWhere(title, where) { const w = await chooseWhere(title, wher
 // clears the app on the TV, so nobody's account stays behind after check-out.
 function signedReminder() {
   const s = state.signed_in || [];
-  if (!s.length || state.host) return '';
+  if (!s.length || state.host || state.household) return '';
   const urgent = state.leaving;
   return `<div class="remind glass ${urgent ? 'urgent' : ''}"><b>${urgent ? 'Before you go, sign out' : 'Signed in on this TV'}</b>
     <span>${esc(s.join(', '))}. ${urgent ? 'Sign out so the next guests can’t use your account.' : 'Remember to sign out before you leave.'}${state.auto_signout ? ` If you forget, the TV signs you out an hour after check-out (${esc(state.checkout)}).` : ''}</span>
@@ -1369,11 +1370,13 @@ function todayView(head) {
         <button data-mode="home" class="${h.mode === 'home' ? 'on' : ''}">Home</button><button data-mode="guest" class="${h.mode !== 'home' && h.mode !== 'kids' ? 'on' : ''}">Guest</button><button data-mode="kids" class="${h.mode === 'kids' ? 'on' : ''}">Kids</button></div></div>
       ${toggleRow('locked', 'Lock to Guest mode', 'Leaving it on the TV needs your PIN', h.locked)}
       ${toggleRow('gremote', 'Guest remote', 'Guests control the TV from their phone', h.guest_remote !== false)}
+      ${toggleRow('hremote', 'Household remote', 'In Home mode, anyone on the Wi-Fi who scans gets the remote, Watch and Music', h.home_remote !== false)}
     </div></div>
     <div class="section"><button class="btn glass" id="newstay">${svg('plus', 20, 2.2)}New stay</button></div>`;
   if ($('#edit')) $('#edit').onclick = () => { hostTab = 'stay'; hostView(); };
   document.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => save({ mode: b.dataset.mode }, 'TV is in ' + b.textContent + ' mode').then(hostView));
   $('#locked').onchange = e => save({ locked: e.target.checked }, e.target.checked ? 'Locked to Guest mode' : 'Unlocked');
+  $('#hremote').onchange = e => save({ home_remote: e.target.checked }, e.target.checked ? 'Household remote on' : 'Only your phone now');
   $('#gremote').onchange = e => save({ guest_remote: e.target.checked }, e.target.checked ? 'Guest remote on' : 'Guest remote off');
   $('#newstay').onclick = () => { hostTab = 'stay'; stayView(head, true); bindHead(); };
 }

@@ -268,6 +268,13 @@
             android:excludeFromRecents="true"
             android:screenOrientation="landscape"
             android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen" />
+        <!-- This fork: Phone remote, the QR code that puts the TV's phone page on a phone (Control Center). -->
+        <activity
+            android:name=".PhoneActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:screenOrientation="landscape"
+            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen" />
         <!-- This fork: the welcome show the first guest phone on check-in day starts. -->
         <activity
             android:name=".ArrivalActivity"

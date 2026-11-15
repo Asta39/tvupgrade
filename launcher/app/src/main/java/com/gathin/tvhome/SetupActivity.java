@@ -427,9 +427,16 @@ public class SetupActivity extends Activity {
                 ? "The welcome screen is ready. Next, open the host page on your phone to add house rules, door codes "
                 + "and your guests' stays. Press Menu on the welcome screen to switch back to Home mode."
                 : granted
-                ? "Press the Home button any time to come back here. The gear at the top right opens Control Center."
+                ? "Press the Home button any time to come back here. The gear at the top right opens Control Center, "
+                + "where Phone remote shows this code again."
                 : "Home is ready. Without debugging, the Home button may still open the old home screen: open this "
                 + "app from your apps list instead.");
+        if (!guest) {
+            // Home: the phone remote, ready to set up now (or later from Control Center → Phone remote).
+            HostServer.start(this);
+            space();
+            page.addView(PhoneActivity.card(this, 150));
+        }
         status = text("", 17, 0xFFFFD27A, R.string.font_medium);
         page.addView(status);
         space();

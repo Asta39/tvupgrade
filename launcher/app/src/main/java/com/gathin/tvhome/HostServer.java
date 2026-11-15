@@ -275,7 +275,7 @@ final class HostServer {
                 json(out, 200, signIn(body.optString("pkg"), host));
                 return;
             case "GET /api/dashboard":
-                if (!host && !"guest".equals(Stay.json(ctx).optString("mode"))) break;
+                if (!host && !"guest".equals(Stay.json(ctx).optString("mode")) && !guestRemote()) break;
                 json(out, 200, dashboard(host));
                 return;
             // ---- watch together: one shared swipe deck, a match when everyone likes the same title (Together)
@@ -535,7 +535,15 @@ final class HostServer {
                 .put("checkout_day", stay.staying() ? stay.depart.getDayOfWeek().getDisplayName(java.time.format.TextStyle.SHORT, Locale.getDefault()) : "")
                 .put("arrive", stay.staying() ? stay.arrive.toString() : "")
                 .put("depart", stay.staying() ? stay.depart.toString() : "");
-        o.put("apps", allowedApps());
+        if (!host && homeMode()) {
+            // The household's own TV: none of the rental's details (Wi-Fi, door code, rules, stays) on their phones.
+            for (String k : new String[]{"place", "about", "wifi_name", "wifi_password", "door_code", "checkin", "checkout", "checkout_time",
+                    "names", "checkout_day", "arrive", "depart"}) o.put(k, "");
+            o.put("rules", new JSONArray()).put("staying", false).put("arriving", false).put("leaving", false);
+        }
+        o.put("household", homeMode());
+        o.put("home_remote", s.optBoolean("home_remote", true));
+        o.put("apps", homeMode() ? apps() : allowedApps());
         o.put("signed_in", signedInLabels());
         // Changes with every install, so an open phone tab can tell it is running an older page and reload.
         try {
@@ -673,6 +681,7 @@ final class HostServer {
         if (b.optBoolean("ai_key_clear")) s.remove("ai_key");
         if (b.has("arrival_show")) s.put("arrival_show", b.optBoolean("arrival_show"));
         if (b.has("guest_remote")) s.put("guest_remote", b.optBoolean("guest_remote"));
+        if (b.has("home_remote")) s.put("home_remote", b.optBoolean("home_remote"));
         if (b.has("mode")) {
             String m = b.optString("mode");
             s.put("mode", "home".equals(m) || "kids".equals(m) ? m : "guest");
@@ -707,9 +716,21 @@ final class HostServer {
         });
     }
 
+    /**
+     * Whether a phone that isn't the host's may use the phone page: guests in Guest mode (guest_remote), and the
+     * household in Home mode (home_remote), each on unless the host turned it off. Kids mode keeps it to the host.
+     */
     private boolean guestRemote() {
         JSONObject s = Stay.json(ctx);
-        return s.optBoolean("guest_remote", true) && "guest".equals(s.optString("mode"));
+        String mode = s.optString("mode", "home");
+        if ("guest".equals(mode)) return s.optBoolean("guest_remote", true);
+        return homeMode() && s.optBoolean("home_remote", true);
+    }
+
+    /** Home mode: a household's own TV, not a rental (and not Kids mode). */
+    private boolean homeMode() {
+        Stay stay = Stay.load(ctx);
+        return !stay.guestMode && !stay.kids;
     }
 
     private JSONArray apps() throws Exception {
@@ -972,7 +993,7 @@ final class HostServer {
     private JSONObject remote(JSONObject b, boolean host) throws Exception {
         String app = b.optString("app", "");
         if (!app.isEmpty()) {
-            boolean ok = host;
+            boolean ok = host || homeMode();
             JSONArray allowed = Stay.json(ctx).optJSONArray("apps");
             if (allowed != null) for (int i = 0; i < allowed.length(); i++) if (app.equals(allowed.optString(i))) ok = true;
             if (!ok) return new JSONObject().put("error", "That app isn't allowed.");
