@@ -373,7 +373,10 @@ final class Party {
         extras.putString(MediaStore.EXTRA_MEDIA_FOCUS, "vnd.android.cursor.item/audio");
         extras.putString(MediaStore.EXTRA_MEDIA_TITLE, title);
         extras.putString(MediaStore.EXTRA_MEDIA_ARTIST, artist);
-        MediaController c = null;
+        MediaController c = session(ctx, pkg);
+        // Not running yet: wake its player service in the background (its media browser), so the song starts
+        // without Bitchord coming up on screen. Opening the app is only the fallback.
+        if (c == null) c = background(ctx, pkg);
         for (int i = 0; i < 6 && c == null; i++) {
             c = session(ctx, pkg);
             if (c != null) break;
@@ -408,6 +411,54 @@ final class Party {
         }
         android.util.Log.i("Party", "asking " + pkg + " for media id " + id + " (" + title + ")");
         c.getTransportControls().playFromMediaId(id, extras);
+    }
+
+    private static android.media.browse.MediaBrowser browser;
+
+    /**
+     * Connects to the player's media browser service (Bitchord's PlaybackService), which starts its player without its
+     * screen, and returns a controller for its session; null if it won't connect within five seconds. The connection
+     * is kept, so the service stays up between songs.
+     */
+    private static MediaController background(Context ctx, String pkg) {
+        try {
+            if (browser != null && browser.isConnected()) return new MediaController(ctx, browser.getSessionToken());
+            Intent probe = new Intent("android.media.browse.MediaBrowserService").setPackage(pkg);
+            java.util.List<android.content.pm.ResolveInfo> found = ctx.getPackageManager().queryIntentServices(probe, 0);
+            if (found.isEmpty()) return null;
+            android.content.ComponentName svc = new android.content.ComponentName(pkg, found.get(0).serviceInfo.name);
+            java.util.concurrent.CountDownLatch done = new java.util.concurrent.CountDownLatch(1);
+            Handler mainThread = new Handler(Looper.getMainLooper());
+            mainThread.post(() -> {
+                if (browser != null) browser.disconnect();
+                browser = new android.media.browse.MediaBrowser(ctx, svc, new android.media.browse.MediaBrowser.ConnectionCallback() {
+                    @Override
+                    public void onConnected() {
+                        done.countDown();
+                    }
+
+                    @Override
+                    public void onConnectionFailed() {
+                        browser = null;
+                        done.countDown();
+                    }
+
+                    @Override
+                    public void onConnectionSuspended() {
+                        browser = null;
+                    }
+                }, null);
+                browser.connect();
+            });
+            if (!done.await(5, java.util.concurrent.TimeUnit.SECONDS)) return null;
+            android.media.browse.MediaBrowser b = browser;
+            if (b == null || !b.isConnected()) return null;
+            android.util.Log.i("Party", "connected to " + pkg + " in the background");
+            return new MediaController(ctx, b.getSessionToken());
+        } catch (Exception e) {
+            android.util.Log.w("Party", "background connect", e);
+            return null;
+        }
     }
 
     /** Whether the player's song is this one: its title and its lead artist both appear in what the player shows. */
