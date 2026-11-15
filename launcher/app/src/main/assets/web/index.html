@@ -161,6 +161,10 @@
   .shelf .pick b { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .shelf .pick small { font-size: 12px; color: var(--ink-3); }
 
+  /* the Music page's playback bar */
+  .pbar { height: 5px; border-radius: 3px; background: rgba(255,255,255,.18); overflow: hidden; margin-top: 14px; }
+  .pbar i { display: block; height: 100%; width: 0; background: #fff; border-radius: 3px; transition: width 1s linear; }
+  .ptimes { display: flex; justify-content: space-between; font-size: 12px; color: var(--ink-3); margin-top: 6px; font-variant-numeric: tabular-nums; }
   /* typing on the TV from the phone's keyboard */
   .typebar { position: fixed; z-index: 7; left: 50%; transform: translateX(-50%); bottom: calc(var(--sab) + 84px);
     width: min(440px, calc(100% - 2 * var(--side))); border-radius: 22px; padding: 10px; display: flex; flex-direction: column; gap: 8px;
@@ -1153,19 +1157,32 @@ async function partyRefresh() {
   if (page !== 'party') return;
   if ($('#pplayer') && p.player) $('#pplayer').textContent = ' Playing through ' + p.player + '.';
   const box = $('#pnow');
+  const pb = p.playback || {};
+  partyClock(pb);
   if (p.now) {
     box.hidden = false;
+    const key = [p.now.id, p.now.waiting, pb.playing, p.now.mine].join('|');
+    if (box._k !== key) { box._k = key;
     box.innerHTML = `<div class="now-head">${p.now.art ? `<img class="now-art" src="${esc(p.now.art)}" alt="">` : ''}
       <div style="min-width:0;flex:1 1 auto"><small class="muted" style="font-size:12px">${p.now.waiting ? 'Starting on the TV…' : 'Now playing'}</small>
       <div class="now-title">${esc(p.now.title)}</div><div class="now-sub">${esc(p.now.artist)} · added by ${esc(p.now.mine ? 'you' : p.now.by)}</div></div></div>
       ${p.now.waiting ? `<p class="note" style="padding-top:0">If it doesn’t start, open the music app on the TV once, then tap Skip.</p>` : ''}
-      <div class="row-ctl" style="justify-content:center;gap:12px">
-        <button class="pill" id="plyrics" style="background:rgba(255,255,255,.16);color:#fff">Lyrics on TV</button>
-        <button class="pill" id="pskip">Skip</button></div>`;
-    $('#pskip').onclick = async () => { tick(); await api('/api/party/skip', {}).catch(e => toast(e.message)); setTimeout(partyRefresh, 1200); };
+      <div class="pbar" aria-hidden="true"><i id="pbarfill"></i></div>
+      <div class="ptimes"><span id="ppos"></span><span id="pdur"></span></div>
+      <div class="row-ctl" style="justify-content:center;gap:22px;margin-top:4px">
+        <button class="round glass" id="prestart" aria-label="Back to the start" style="width:52px;height:52px">${svg('prev', 22, 2, 'currentColor')}</button>
+        <button class="round solid" id="ptoggle" aria-label="${pb.playing ? 'Pause' : 'Play'}" style="width:64px;height:64px">${svg(pb.playing ? 'pause' : 'play', 26, pb.playing ? 2.8 : 2, pb.playing ? 'none' : 'currentColor')}</button>
+        <button class="round glass" id="pnext" aria-label="Next song" style="width:52px;height:52px">${svg('next', 22, 2, 'currentColor')}</button></div>
+      <div class="row-ctl" style="justify-content:center;margin-top:10px">
+        <button class="pill" id="plyrics" style="background:rgba(255,255,255,.16);color:#fff">Lyrics on TV</button></div>`;
+    const ctl = (action, msg) => async () => { tick(); const x = await api('/api/party/control', { action }).catch(e => ({ error: e.message })); if (x.error) toast(x.error); else if (msg) toast(msg); setTimeout(partyRefresh, action === 'next' ? 1500 : 400); };
+    $('#ptoggle').onclick = ctl('toggle');
+    $('#prestart').onclick = ctl('restart');
+    $('#pnext').onclick = ctl('next', 'Next song');
     $('#plyrics').onclick = () => { tick(); api('/api/party/lyrics', {}).then(() => toast('Lyrics on the TV')).catch(e => toast(e.message)); };
+    }
     backdrop(p.now.art);
-  } else box.hidden = true;
+  } else { box.hidden = true; box._k = ''; }
   const setHtml = (el, h) => { if (el._h !== h) { el._h = h; el.innerHTML = h; return true; } return false; };
   const qHtml = p.queue.length ? p.queue.map((t, i) => `<div class="row" style="justify-content:flex-start;gap:12px">
       <span class="muted" style="width:18px;text-align:right;font-size:14px">${i + 1}</span>
@@ -1317,6 +1334,20 @@ const songDeck = {
     });
   },
 };
+// The progress bar: set from the TV every refresh, moved on here each second while playing.
+let pclock = null;
+function partyClock(pb) {
+  clearInterval(pclock);
+  const at = Date.now();
+  const draw = () => {
+    const f = $('#pbarfill'); if (!f) return;
+    const pos = Math.min(pb.dur || 0, (pb.pos || 0) + (pb.playing ? Date.now() - at : 0));
+    f.style.width = pb.dur ? (pos / pb.dur * 100).toFixed(2) + '%' : '0';
+    $('#ppos').textContent = pb.dur ? fmt(pos) : ''; $('#pdur').textContent = pb.dur ? '-' + fmt(pb.dur - pos) : '';
+  };
+  setTimeout(draw, 0);
+  if (pb.playing) pclock = setInterval(() => { if (page !== 'party') return clearInterval(pclock); draw(); }, 1000);
+}
 async function partySearch(q) {
   if (!q.trim()) return;
   const box = $('#pres'); box.innerHTML = '<div class="muted" style="padding:6px 4px">Searching…</div>';

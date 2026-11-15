@@ -350,6 +350,10 @@ final class HostServer {
                 if (!host && !guestRemote()) break;
                 json(out, 200, Party.remove(body.optString("id"), body.optString("phone"), host));
                 return;
+            case "POST /api/party/control":
+                if (!host && !guestRemote()) break;
+                json(out, 200, Party.control(ctx, body.optString("action")));
+                return;
             case "POST /api/party/skip":
                 if (!host && !guestRemote()) break;
                 json(out, 200, Party.skip(ctx));
