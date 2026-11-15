@@ -952,20 +952,26 @@ const deck = {
     const d = $('#deck'); if (!d) return;
     this.top = this.queue.shift() || null;
     if (this.queue.length < 4) this.fill();
-    if (!this.top) { if (this.group) this.msg('You’ve swiped them all. Waiting for the others…'); else if (!this.loading) this.msg('No more for now. Try a search.'); return; }
-    d.innerHTML = '';
-    const under = this.queue[0];
-    if (under) d.appendChild(this.cardEl(under, true));
-    d.appendChild(this.cardEl(this.top, false));
+    // The card underneath slides up to become the top one: nothing is rebuilt, so its poster is already there.
+    d.querySelectorAll('.card.gone').forEach(x => setTimeout(() => x.remove(), 400));
+    d.querySelectorAll('.deck-msg').forEach(x => x.remove());
+    if (!this.top) { d.querySelectorAll('.card.under').forEach(x => x.remove());
+      if (this.group) this.msg('You’ve swiped them all. Waiting for the others…'); else if (!this.loading) this.msg('No more for now. Try a search.'); return; }
+    let topEl = d.querySelector('.card.under');
+    if (!topEl || topEl.dataset.id !== this.top.key) { if (topEl) topEl.remove(); d.querySelectorAll('.card:not(.gone)').forEach(x => x.remove()); topEl = this.cardEl(this.top); d.appendChild(topEl); }
+    topEl.classList.remove('under'); topEl.style.transform = ''; topEl.style.opacity = ''; topEl.style.transition = '';
+    if (!topEl.dataset.armed) { topEl.dataset.armed = '1'; this.drag(topEl); }
+    const nx = this.queue[0];
+    if (nx) { const u = this.cardEl(nx); u.classList.add('under'); d.insertBefore(u, topEl); }
+    // Fetch the next few posters now, so they're ready when their card comes up.
+    this.queue.slice(1, 4).forEach(c => { const im = new Image(); im.src = c.poster; });
   },
-  cardEl(c, back) {
+  cardEl(c) {
     const el = document.createElement('div');
-    el.className = 'card'; el.style.backgroundImage = `url("${c.poster}")`;
-    if (back) { el.style.transform = 'scale(.94) translateY(10px)'; el.style.opacity = '.7'; }
+    el.className = 'card song'; el.dataset.id = c.key; el.style.backgroundImage = `url("${c.poster}")`;
     el.innerHTML = `<div class="shade"></div><span class="stamp like">LIKE</span><span class="stamp nope">NOPE</span>
       <div class="meta"><div class="tags">${c.genres.slice(0, 3).map(g => `<span>${esc(this.name(g))}</span>`).join('')}</div>
       <b>${esc(c.title)}</b><small>${esc(c.type)}${c.year ? ' · ' + c.year : ''} · ${esc(c.where.map(w => w.name).join(', '))}</small></div>`;
-    if (!back) this.drag(el);
     return el;
   },
   drag(el) {
@@ -998,14 +1004,14 @@ const deck = {
   },
   fling(dir) {
     const c = this.top, d = $('#deck'); if (!c || !d) return;
+    const el = d.querySelector('.card:not(.under):not(.gone)'); if (!el) return;
     tick();
-    const el = d.lastElementChild;
-    el.classList.remove('drag');
+    el.classList.remove('drag'); el.classList.add('gone');
     el.style.transform = `translateX(${dir * window.innerWidth * 1.2}px) rotate(${dir * 24}deg)`;
     el.style.opacity = '0';
     if (this.group) {
       api('/api/group/vote', { me: this.group.me, key: c.key, like: dir > 0 }).then(groupState).catch(e => toast(e.message));
-      setTimeout(() => this.next(), 220);
+      this.next();
       return;
     }
     const p = this.profile(); p.score = p.score || {}; p.seen = p.seen || [];
@@ -1019,7 +1025,7 @@ const deck = {
       savePicks(picks); showPicks();
     }
     this.history.push({ card: c, dir });
-    setTimeout(() => this.next(), 220);
+    this.next();
   },
   undo() {
     const h = this.history.pop(); if (!h) return;
