@@ -152,12 +152,16 @@ stays minimal; everything rich lives on the phone.
   only see what was played during their own stay. The Watch tab has the same row, under *Your picks*.
 - **Open on the TV:** the allowed apps, one tap each.
 
+<img src="screenshots/phone-continue.jpg" alt="Popular on your TV, Continue watching and the TV's apps" width="450">
+
 ### Type with your phone's keyboard
 
 When a text box on the TV opens its on-screen keyboard (a search, a sign-in), a typing bar slides up on every phone
 that has the page open. What you type appears on the TV as you go, backspace included, and **Go** submits it.
 Password boxes stay hidden on the phone. Apps that draw their own keyboard instead of Android's (YouTube's search,
 for one) can't be typed into this way.
+
+<img src="screenshots/phone-keyboard.jpg" alt="The typing bar over the remote" width="450">
 
 ### Watch together
 
@@ -187,7 +191,9 @@ songs. The first song opens StandBy with the lyrics.
 - **Recently played:** the last ten songs, under the queue. Tap one to queue it again.
 - A dropped Wi-Fi moment doesn't lose a song: adds retry on their own, and the TV ignores a repeat.
 
-<img src="screenshots/phone-music.jpg" alt="Music: now playing, search and the shared queue" width="450">
+| | |
+|---|---|
+| ![Music: now playing, search and the shared queue](screenshots/phone-music.jpg) | ![Swipe for songs](screenshots/phone-songs.jpg) |
 
 No keys and no accounts: search uses Apple's public iTunes song search, and songs play through **Bitchord**
 (YouTube Music) when the TV has it, else YouTube. Bitchord plays in the background: the TV starts its player
@@ -223,6 +229,8 @@ host. After that, anyone in the house on the same Wi-Fi scans it and gets **Remo
 **Watch**, **Watch together** and **Music**, with every app on the TV and none of the rental parts (Wi-Fi card, door
 code, house rules, check-out). The host can keep it to their own phone with **Household remote** on the host page.
 Kids mode stays with the host.
+
+<img src="screenshots/phone-household.jpg" alt="The phone's Home in Home mode" width="450">
 
 ## What's on screen
 

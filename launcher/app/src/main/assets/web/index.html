@@ -168,7 +168,8 @@
   /* typing on the TV from the phone's keyboard */
   .typebar { position: fixed; z-index: 7; left: 50%; transform: translateX(-50%); bottom: calc(var(--sab) + 84px);
     width: min(440px, calc(100% - 2 * var(--side))); border-radius: 22px; padding: 10px; display: flex; flex-direction: column; gap: 8px;
-    animation: typein .3s var(--ease); }
+    animation: typein .3s var(--ease); background: rgba(24,24,27,.94) !important; border: 1px solid rgba(255,255,255,.12);
+    box-shadow: 0 14px 40px rgba(0,0,0,.5); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); }
   @keyframes typein { from { opacity: 0; transform: translate(-50%, 12px); } }
   .typebar .head { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); padding: 0 4px; }
   .typebar form { display: flex; gap: 8px; }
