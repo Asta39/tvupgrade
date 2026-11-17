@@ -313,6 +313,9 @@ The script is [`scripts/make_cutouts.py`](scripts/make_cutouts.py).
 
 ## Install on a TV, no computer needed
 
+**Which TVs work, and what you need:** see [COMPATIBILITY.md](COMPATIBILITY.md) (Google TV, Android TV, Fire TV,
+which features need the debugging setup, permissions, troubleshooting).
+
 **From Orion Store:** open [Home in Orion Store](https://rookieenough.github.io/Orion-Data/app/?id=home)
 (or `orionstore://app/home`) and install. Orion keeps it updated from this repo's releases.
 
