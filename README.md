@@ -140,7 +140,7 @@ stays minimal; everything rich lives on the phone.
 
 | | |
 |---|---|
-| ![Phone Home: today, weather by the hour](screenshots/phone-home.jpg) | ![Phone Home: around you and what's popular](screenshots/phone-home-more.jpg) |
+| ![Phone Home: today, weather by the hour](screenshots/mockup-phone-home.png) | ![Phone Home: around you and what's popular](screenshots/mockup-phone-home-more.png) |
 
 - **Today:** the song playing for the room.
 - **Your stay and the door code**, with a countdown to check-out on the last day.
@@ -152,7 +152,7 @@ stays minimal; everything rich lives on the phone.
   only see what was played during their own stay. The Watch tab has the same row, under *Your picks*.
 - **Open on the TV:** the allowed apps, one tap each.
 
-<img src="screenshots/phone-continue.jpg" alt="Popular on your TV, Continue watching and the TV's apps" width="450">
+<img src="screenshots/mockup-phone-continue.png" alt="Popular on your TV, Continue watching and the TV's apps" width="380">
 
 ### Type with your phone's keyboard
 
@@ -161,7 +161,7 @@ that has the page open. What you type appears on the TV as you go, backspace inc
 Password boxes stay hidden on the phone. Apps that draw their own keyboard instead of Android's (YouTube's search,
 for one) can't be typed into this way.
 
-<img src="screenshots/phone-keyboard.jpg" alt="The typing bar over the remote" width="450">
+<img src="screenshots/mockup-phone-keyboard.png" alt="The typing bar over the remote" width="380">
 
 ### Watch together
 
@@ -171,7 +171,7 @@ the phones and the TV both say so, with a Play button.
 
 | | |
 |---|---|
-| ![Swiping together](screenshots/phone-together.jpg) | ![It's a match, on the phone](screenshots/phone-match.jpg) |
+| ![Swiping together](screenshots/mockup-phone-together.png) | ![It's a match, on the phone](screenshots/mockup-phone-match.png) |
 
 ![It's a match, on the TV](screenshots/tv-match.jpg)
 
@@ -193,7 +193,7 @@ songs. The first song opens StandBy with the lyrics.
 
 | | |
 |---|---|
-| ![Music: now playing, search and the shared queue](screenshots/phone-music.jpg) | ![Swipe for songs](screenshots/phone-songs.jpg) |
+| ![Music: now playing, search and the shared queue](screenshots/mockup-phone-music.png) | ![Swipe for songs](screenshots/mockup-phone-songs.png) |
 
 No keys and no accounts: search uses Apple's public iTunes song search, and songs play through **Bitchord**
 (YouTube Music) when the TV has it, else YouTube. Bitchord plays in the background: the TV starts its player
@@ -230,7 +230,7 @@ host. After that, anyone in the house on the same Wi-Fi scans it and gets **Remo
 code, house rules, check-out). The host can keep it to their own phone with **Household remote** on the host page.
 Kids mode stays with the host.
 
-<img src="screenshots/phone-household.jpg" alt="The phone's Home in Home mode" width="450">
+<img src="screenshots/mockup-phone-household.png" alt="The phone's Home in Home mode" width="380">
 
 ## What's on screen
 
