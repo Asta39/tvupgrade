@@ -133,6 +133,8 @@
   .tile .txt p b { color: var(--ink); font-weight: 600; }
   .tile img { width: 100%; margin-top: auto; }
   .tile.pad img { width: calc(100% - 3rem); margin: auto 1.5rem 1.5rem; border-radius: 1rem; }
+  /* A phone mockup in a half-width tile: narrow and centred, its own shadow included. */
+  .tile img.phoneshot { width: 46%; margin: auto auto 1.5rem; }
   .w6 { grid-column: span 6; } .w4 { grid-column: span 4; } .w3 { grid-column: span 3; } .w2 { grid-column: span 2; }
   .tile.row { flex-direction: row; align-items: center; }
   .tile.row .txt { flex: 0 0 34%; }
@@ -321,17 +323,21 @@
         <div class="txt"><h3>Theme packs</h3><p>One tile in Control Center: <b>Dusk, Mono, Cinema or Seasonal.</b> Black-and-white pictures, a gold cinema glow, or colours that follow the month. Your own theme is never touched.</p></div>
         <img data-s="theme-mono.jpg" alt="The Mono theme pack">
       </div>
-      <div class="tile w3 rv">
+      <div class="tile w3 pad rv">
         <div class="txt"><h3>Updates on the TV</h3><p>A new release shows up in Control Center. <b>Download, then Install</b>, with a progress bar. No browser, no computer.</p></div>
+        <img data-s="control-center-update.jpg" alt="An update card in Control Center">
       </div>
-      <div class="tile w3 rv">
+      <div class="tile w3 pad rv">
         <div class="txt"><h3>Weather in the screensaver</h3><p>Rain falls across StandBy when it’s raining outside, <b>snow when it snows</b>, fog on foggy days. The face drifts slowly against burn-in.</p></div>
+        <img data-s="standby-rain.jpg" alt="StandBy with rain falling">
       </div>
       <div class="tile w3 rv">
         <div class="txt"><h3>Type from your phone</h3><p>Tap <b>Type on the TV</b> on the phone remote, and your phone’s keyboard types into whatever the TV is asking for.</p></div>
+        <img class="phoneshot" data-s="mockup-phone-keyboard.png" alt="Typing on the TV from the phone">
       </div>
-      <div class="tile w3 rv">
+      <div class="tile w3 pad rv">
         <div class="txt"><h3>Change your mind?</h3><p><b>Old home</b> in Control Center gives the TV its own launcher back, with one confirmation. Keep the clutter off, or turn everything back on.</p></div>
+        <img data-s="old-home.jpg" alt="Going back to the TV's own home screen">
       </div>
       <div class="tile w6 row rv">
         <div class="txt"><h3>All your apps</h3><p>Your favourite eight live in the dock. <b>Press Down</b> for everything else, in clean iOS-style icons.</p></div>
