@@ -110,6 +110,8 @@ final class HomeExtras {
         // The picture's foreground, in front of the clock and behind everything else (WallpaperPlayer.onDepth).
         ImageView depth = new ImageView(activity);
         depth.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        // The cut-out is part of the picture: it takes the theme pack's filter too, or Mono shows coloured trees.
+        depth.setColorFilter(ThemePacks.wallpaperFilter());
         depth.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         root.addView(depth, at + 1, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));

@@ -463,6 +463,7 @@ public class GuestActivity extends Activity {
         bar.setPadding(px(6), px(6), px(6), px(6));
         boolean kids = Stay.kidsMode(this);
         if (!kids) bar.addView(chip(null, "House guide", v -> showRules()));
+        if (!kids && places().length() > 0) bar.addView(chip(null, "Around here", v -> showPlaces()));
         // Last on the row: the host's way out (Menu does the same), behind the PIN once the TV is locked.
         View hostChip = chip(null, "Host", v -> hostMenu());
         PackageManager pm = getPackageManager();
@@ -525,6 +526,106 @@ public class GuestActivity extends Activity {
         l.rightMargin = px(4);
         c.setLayoutParams(l);
         return c;
+    }
+
+    /** The host's local guide cards (stay.json "places"). */
+    private org.json.JSONArray places() {
+        org.json.JSONArray a = Stay.json(this).optJSONArray("places");
+        return a == null ? new org.json.JSONArray() : a;
+    }
+
+    /**
+     * Around here: the host's local guide as cards. Moving along the row shows each place's QR code, which opens it
+     * in Maps on the guest's phone. Back closes it, like the house guide.
+     */
+    private void showPlaces() {
+        if (rulesSheet != null) return;
+        org.json.JSONArray all = places();
+        FrameLayout scrim = new FrameLayout(this);
+        scrim.setBackgroundColor(0xB3000000);
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(px(36), px(30), px(36), px(30));
+        panel.setClipChildren(false);
+        panel.setClipToPadding(false);
+        panel.addView(text("Around here", 28, Color.WHITE, R.string.font_medium));
+        panel.addView(text("The host's picks. Scan a code to open it in Maps on your phone.", 15, 0x99FFFFFF, R.string.font_regular), lp(-2, -2, 6));
+
+        LinearLayout body = new LinearLayout(this);
+        body.setClipChildren(false);
+        body.setGravity(Gravity.CENTER_VERTICAL);
+        android.widget.HorizontalScrollView scroll = new android.widget.HorizontalScrollView(this);
+        scroll.setHorizontalScrollBarEnabled(false);
+        scroll.setClipChildren(false);
+        scroll.setClipToPadding(false);
+        scroll.setPadding(px(4), px(14), px(4), px(14));
+        LinearLayout row = new LinearLayout(this);
+        row.setClipChildren(false);
+        scroll.addView(row);
+        body.addView(scroll, new LinearLayout.LayoutParams(0, -2, 1f));
+
+        LinearLayout qrBox = new LinearLayout(this);
+        qrBox.setOrientation(LinearLayout.VERTICAL);
+        qrBox.setGravity(Gravity.CENTER_HORIZONTAL);
+        qrBox.setPadding(px(16), px(16), px(16), px(12));
+        qrBox.setBackground(glass(Color.WHITE, 22));
+        ImageView qr = new ImageView(this);
+        qrBox.addView(qr, new LinearLayout.LayoutParams(px(170), px(170)));
+        TextView where = text("", 13, 0xFF1C1C1E, R.string.font_medium);
+        where.setGravity(Gravity.CENTER);
+        where.setMaxWidth(px(170));
+        qrBox.addView(where, lp(-2, -2, 8));
+        LinearLayout.LayoutParams ql = new LinearLayout.LayoutParams(-2, -2);
+        ql.leftMargin = px(24);
+        body.addView(qrBox, ql);
+        panel.addView(body, lp(-1, -2, 10));
+
+        View first = null;
+        for (int i = 0; i < all.length(); i++) {
+            org.json.JSONObject p = all.optJSONObject(i);
+            if (p == null) continue;
+            LinearLayout card = new LinearLayout(this);
+            card.setOrientation(LinearLayout.VERTICAL);
+            card.setPadding(px(18), px(16), px(18), px(16));
+            card.setFocusable(true);
+            card.setClickable(true);
+            card.setBackground(glass(0x33FFFFFF, 20));
+            TextView kind = text(p.optString("kind").toUpperCase(java.util.Locale.ROOT), 11, 0xFFFFB86B, R.string.font_medium);
+            kind.setLetterSpacing(0.12f);
+            TextView name = text(p.optString("name"), 19, Color.WHITE, R.string.font_medium);
+            name.setMaxLines(2);
+            TextView note = text(p.optString("note"), 13, 0xB3FFFFFF, R.string.font_regular);
+            note.setMaxLines(3);
+            if (!p.optString("kind").isEmpty()) card.addView(kind);
+            card.addView(name, lp(-1, -2, 4));
+            if (!p.optString("note").isEmpty()) card.addView(note, lp(-1, -2, 6));
+            String url = HostServer.mapsUrl(p), addr = p.optString("address");
+            card.setOnFocusChangeListener((v, f) -> {
+                card.setBackground(glass(f ? Color.WHITE : 0x33FFFFFF, 20));
+                name.setTextColor(f ? 0xFF1C1C1E : Color.WHITE);
+                note.setTextColor(f ? 0x991C1C1E : 0xB3FFFFFF);
+                v.animate().scaleX(f ? 1.05f : 1f).scaleY(f ? 1.05f : 1f).setDuration(160).start();
+                if (f) {
+                    android.graphics.Bitmap b = HostQr.bitmap(url, px(170));
+                    if (b != null) qr.setImageBitmap(b);
+                    where.setText(addr.isEmpty() ? "Scan for directions" : addr);
+                }
+            });
+            LinearLayout.LayoutParams cl = new LinearLayout.LayoutParams(px(220), px(150));
+            cl.rightMargin = px(14);
+            row.addView(card, cl);
+            if (first == null) first = card;
+        }
+        TextView hint = text("Press Back to close", 13, 0x99FFFFFF, R.string.font_regular);
+        panel.addView(hint, lp(-2, -2, 10));
+        FrostedLayout sheet = new FrostedLayout(this, 28, 0x80000000);
+        sheet.setClipChildren(false);
+        sheet.addView(panel);
+        scrim.addView(sheet, new FrameLayout.LayoutParams(px(900), -2, Gravity.CENTER));
+        ((FrameLayout) findViewById(android.R.id.content)).addView(scrim, new FrameLayout.LayoutParams(-1, -1));
+        rulesSheet = scrim;
+        if (first != null) first.requestFocus();
+        else scrim.requestFocus();
     }
 
     private void showRules() {

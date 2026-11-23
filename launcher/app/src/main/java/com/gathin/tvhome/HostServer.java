@@ -73,6 +73,7 @@ final class HostServer {
         HostServer s = new HostServer(ctx);
         running = s;
         if (Stay.json(ctx).optString("pin_sha256", "").isEmpty()) newClaimCode();
+        Peers.start(ctx);
         Thread t = new Thread(s::serve, "host-server");
         t.setDaemon(true);
         t.start();
@@ -82,6 +83,78 @@ final class HostServer {
             x.setDaemon(true);
             return x;
         }).scheduleWithFixedDelay(s::autoSignOut, 1, 10, java.util.concurrent.TimeUnit.MINUTES);
+        // Every minute: check-in and check-out on time (stayTick).
+        java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread x = new Thread(r, "stay-clock");
+            x.setDaemon(true);
+            return x;
+        }).scheduleWithFixedDelay(s::stayTick, 20, 60, java.util.concurrent.TimeUnit.SECONDS);
+    }
+
+    /**
+     * Auto check-in and check-out (this fork), once per stay each, within twelve hours of the time.
+     * Check-in (the arrival day at check-in time, Guest mode): the TV turns to the welcome screen, ready for them.
+     * Check-out (the departure day at check-out time): sign out of every streaming app signed in from a phone, clear
+     * Continue watching, the music queue and any Watch together round, then show "Thanks for staying" with the host's
+     * review link, and go on to the welcome screen. "auto_checkout": false in stay.json turns both off.
+     */
+    private void stayTick() {
+        try {
+            JSONObject s = Stay.json(ctx);
+            if (!s.optBoolean("auto_checkout", true) || !"guest".equals(s.optString("mode"))) return;
+            JSONObject g = s.optJSONObject("guest");
+            if (g == null) return;
+            String key = g.optString("names") + "|" + g.optString("arrive") + "|" + g.optString("depart");
+            long now = System.currentTimeMillis(), window = 12 * 60 * 60 * 1000L;
+            java.time.ZoneId zone = java.time.ZoneId.systemDefault();
+            long in = java.time.LocalDate.parse(g.optString("arrive")).atTime(Stay.time(s.optString("checkin", "15:00")))
+                    .atZone(zone).toInstant().toEpochMilli();
+            long out = java.time.LocalDate.parse(g.optString("depart")).atTime(Stay.time(s.optString("checkout", "10:00")))
+                    .atZone(zone).toInstant().toEpochMilli();
+            if (now >= out && now < out + window && !key.equals(s.optString("checked_out"))) {
+                checkOut(s, g, key);
+            } else if (now >= in && now < in + window && now < out && !key.equals(s.optString("checked_in"))) {
+                s.put("checked_in", key);
+                Stay.write(ctx, s);
+                main.post(() -> {
+                    try {
+                        ctx.startActivity(new Intent(ctx, GuestActivity.class)
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP));
+                    } catch (Exception ignored) {
+                    }
+                });
+            }
+        } catch (Exception e) {
+            android.util.Log.w("HostServer", "stay clock", e);
+        }
+    }
+
+    /** Check-out now, from the clock or from the host's phone. */
+    private JSONObject checkOut(JSONObject s, JSONObject g, String key) throws Exception {
+        boolean signedOut = true;
+        if (!signins().isEmpty()) signedOut = !signOut("").has("error");
+        try {
+            Party.stop();
+            Together.end();
+        } catch (Exception ignored) {
+        }
+        JSONObject after = Stay.json(ctx);
+        after.remove("continue");
+        after.remove("recent");
+        after.remove("signout_at");
+        after.put("checked_out", key);
+        Stay.write(ctx, after);
+        changed();
+        String names = g.optString("names"), place = s.optString("place"), review = s.optString("review_url");
+        main.post(() -> {
+            try {
+                ctx.startActivity(new Intent(ctx, ThanksActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        .putExtra("names", names).putExtra("place", place).putExtra("review", review));
+            } catch (Exception ignored) {
+            }
+        });
+        return new JSONObject().put("ok", true).put("note", signedOut ? "Checked out. The TV is ready for the next guests."
+                : "Checked out, but signing out needs debugging on in the TV's setup.");
     }
 
     private void autoSignOut() {
@@ -155,6 +228,13 @@ final class HostServer {
             for (int i = 1; i < lines.length; i++) {
                 int c = lines[i].indexOf(':');
                 if (c > 0) headers.put(lines[i].substring(0, c).trim().toLowerCase(Locale.ROOT), lines[i].substring(c + 1).trim());
+            }
+            // Another TV's phone page on this Wi-Fi (the host's dashboard of several TVs) may call this TV's API.
+            String origin = headers.getOrDefault("origin", "");
+            CORS.set(origin.matches("http://(10|172|192)\\.[0-9.]+:" + PORT) ? origin : null);
+            if ("OPTIONS".equals(method)) {
+                reply(socket.getOutputStream(), 204, "text/plain", new byte[0]);
+                return;
             }
             int length = 0;
             try {
@@ -411,6 +491,32 @@ final class HostServer {
                 Stay.write(ctx, s);
                 json(out, 200, new JSONObject().put("ok", true));
                 return;
+            case "GET /api/peers":
+                // The other TVs running this launcher on the same Wi-Fi (Peers), for the host's dashboard.
+                if (!host) break;
+                json(out, 200, new JSONObject().put("tvs", Peers.list()).put("me", Peers.myName(ctx)));
+                return;
+            case "POST /api/checkout":
+                // Check the current guests out now, from the host's phone.
+                if (!host) break;
+                JSONObject st = Stay.json(ctx), gu = st.optJSONObject("guest");
+                if (gu == null) {
+                    json(out, 409, new JSONObject().put("error", "No one is staying."));
+                    return;
+                }
+                json(out, 200, checkOut(st, gu, gu.optString("names") + "|" + gu.optString("arrive") + "|" + gu.optString("depart")));
+                return;
+            case "POST /api/reverse":
+                // Back to the TV's own home screen (Reverse), from the host's phone. The owner only, never a guest.
+                if (!host) break;
+                if (!Reverse.possible()) {
+                    json(out, 409, new JSONObject().put("error", "Turn on USB or Network debugging on the TV first."));
+                    return;
+                }
+                boolean started = Reverse.start(ctx, body.optBoolean("keep_off", true), null);
+                json(out, 200, new JSONObject().put("ok", started)
+                        .put("note", started ? "The TV is going back to its own home screen." : "Already on its way."));
+                return;
             case "GET /api/apps":
                 if (!host) break;
                 json(out, 200, new JSONObject().put("apps", apps()));
@@ -430,14 +536,20 @@ final class HostServer {
         reply(out, code, "application/json; charset=utf-8", j.toString());
     }
 
+    /** The other TV's page origin allowed for this request (LAN addresses on this port only), or null. */
+    private static final ThreadLocal<String> CORS = new ThreadLocal<>();
+
     private static void reply(OutputStream out, int code, String type, String body) throws Exception {
         reply(out, code, type, body.getBytes(StandardCharsets.UTF_8));
     }
 
     private static void reply(OutputStream out, int code, String type, byte[] body) throws Exception {
-        String status = code == 200 ? "OK" : code == 401 ? "Unauthorized" : code == 404 ? "Not Found" : code == 429 ? "Too Many Requests" : "Bad Request";
+        String status = code == 200 ? "OK" : code == 204 ? "No Content" : code == 401 ? "Unauthorized" : code == 404 ? "Not Found" : code == 429 ? "Too Many Requests" : "Bad Request";
+        String cors = CORS.get();
+        String allow = cors == null ? "" : "Access-Control-Allow-Origin: " + cors + "\r\nVary: Origin\r\n"
+                + "Access-Control-Allow-Headers: Content-Type, X-Session\r\nAccess-Control-Allow-Methods: GET, POST\r\n";
         String head = "HTTP/1.1 " + code + " " + status + "\r\nContent-Type: " + type + "\r\nContent-Length: " + body.length
-                + "\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nConnection: close\r\n\r\n";
+                + "\r\n" + allow + "Cache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nConnection: close\r\n\r\n";
         out.write(head.getBytes(StandardCharsets.UTF_8));
         out.write(body);
         out.flush();
@@ -545,6 +657,16 @@ final class HostServer {
                     "names", "checkout_day", "arrive", "depart"}) o.put(k, "");
             o.put("rules", new JSONArray()).put("staying", false).put("arriving", false).put("leaving", false);
         }
+        // Local guide cards, each with its Maps link; none for the household's own TV.
+        JSONArray guide = new JSONArray();
+        if (!homeMode()) {
+            JSONArray pl = s.optJSONArray("places");
+            for (int i = 0; pl != null && i < pl.length(); i++) {
+                JSONObject p = pl.optJSONObject(i);
+                if (p != null) guide.put(new JSONObject(p.toString()).put("maps", mapsUrl(p)));
+            }
+        }
+        o.put("places", guide);
         o.put("household", homeMode());
         o.put("home_remote", s.optBoolean("home_remote", true));
         o.put("apps", homeMode() ? apps() : allowedApps());
@@ -664,6 +786,32 @@ final class HostServer {
         main.post(() -> ctx.startActivity(new Intent(ctx, ArrivalActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)));
     }
 
+    /** Local guide cards (this fork): up to 24 places, each {name, kind, note, address}, every field trimmed and capped. */
+    static JSONArray places(JSONArray in) throws Exception {
+        JSONArray out = new JSONArray();
+        for (int i = 0; i < in.length() && out.length() < 24; i++) {
+            JSONObject p = in.optJSONObject(i);
+            if (p == null || p.optString("name").trim().isEmpty()) continue;
+            JSONObject c = new JSONObject();
+            for (String k : new String[]{"name", "kind", "note", "address"}) {
+                String v = p.optString(k, "").trim();
+                c.put(k, v.length() > 160 ? v.substring(0, 160) : v);
+            }
+            out.put(c);
+        }
+        return out;
+    }
+
+    /** A Google Maps search link for a guide card: works on any phone, opens the Maps app where there is one. */
+    static String mapsUrl(JSONObject place) {
+        String q = (place.optString("name") + " " + place.optString("address")).trim();
+        try {
+            return "https://www.google.com/maps/search/?api=1&query=" + java.net.URLEncoder.encode(q, "UTF-8");
+        } catch (Exception e) {
+            return "https://www.google.com/maps";
+        }
+    }
+
     /** Fields the host page may change; anything else in the body is ignored. */
     private void save(JSONObject b) throws Exception {
         JSONObject s = Stay.json(ctx);
@@ -680,6 +828,12 @@ final class HostServer {
         }
         if (b.has("locked")) s.put("locked", b.optBoolean("locked"));
         if (b.has("auto_signout")) s.put("auto_signout", b.optBoolean("auto_signout"));
+        if (b.has("auto_checkout")) s.put("auto_checkout", b.optBoolean("auto_checkout"));
+        if (b.has("review_url")) {
+            String u = b.optString("review_url", "").trim();
+            if (u.isEmpty() || u.startsWith("https://") || u.startsWith("http://")) s.put("review_url", u);
+        }
+        if (b.has("places") && b.optJSONArray("places") != null) s.put("places", places(b.optJSONArray("places")));
         // The AI key: set when a new one is sent, removed on request, otherwise kept as it is.
         if (!b.optString("ai_key", "").trim().isEmpty()) s.put("ai_key", b.optString("ai_key").trim());
         if (b.optBoolean("ai_key_clear")) s.remove("ai_key");

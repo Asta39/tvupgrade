@@ -517,6 +517,8 @@ final class Config {
         File file = dir != null ? new File(dir, FILE_NAME) : null;
         boolean mounted = Environment.MEDIA_MOUNTED.equals(Environment.getExternalStorageState());
         JSONObject json = readOverlay(ctx, file, mounted);
+        // The theme pack picked in Control Center, laid over the theme's own settings (ThemePacks).
+        ThemePacks.apply(ctx, json);
         if (json != null) {
             applied = true;
             dock = stringList(json, "dock_apps", dock);

@@ -82,8 +82,10 @@ Android lets one app be Home. On Google TV the stock launcher can update itself 
 back. Two things keep this launcher in charge:
 
 1. The setup sets it as Home with `cmd package set-home-activity`.
-2. The **Home button helper** (Settings → Accessibility → *Home button*) catches the Home press and opens this
-   launcher directly, and sends the stock home screen back here whenever it appears. The theme setting
+2. The **Home button helper** (Settings → Accessibility → *Home button*) sends the stock home screen back here
+   whenever it appears, within a fraction of a second, including when it was already on screen as the helper started
+   (after an update, or after a cleaner app stopped Home). Some firmware, TCL's included, opens Google TV's home on
+   the Home key before any app can see the key, so you may see it flash for a moment. The theme setting
    `stock_home_redirect` names the stock launcher to watch for, and `restore_key_services` turns the helpers back on
    if a cleaner app or a force stop switches them off.
 
@@ -116,7 +118,7 @@ home screen or setup app: some Google TVs restart forever without them. For othe
 | Write settings | Screen brightness |
 | Write secure settings (ADB only) | Turning its own helpers back on; never granted without ADB |
 | Install packages | Installing updates of this launcher from Control Center |
-| Accessibility: *Home button*, *Sleep* | The Home key, Sleep, Screen off and Night Shift. They read keys only, not what's on screen |
+| Accessibility: *Home button*, *Sleep* | The Home key, Sleep, Screen off and Night Shift. The Home button helper also reads the name of the app in front (nothing else on screen), so it can send the TV's old home screen back to this one |
 | Notification listener | Now Playing |
 
 Nothing is sent anywhere except the requests above. There's no tracking or analytics.

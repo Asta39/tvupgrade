@@ -145,6 +145,7 @@ final class Setup {
         }
         run(adb, failed, "Sleep and the Home button", "settings put secure enabled_accessibility_services " + on);
         adb.shell("settings put secure accessibility_enabled 1");
+        Reverse.recordScreensaver(ctx, adb.shell("settings get secure screensaver_components").trim());
         run(adb, failed, "StandBy screensaver", "settings put secure screensaver_components " + pkg + "/" + StandByDream.class.getName());
         keepStockHomeOn(adb);
         String home = adb.shell("cmd package set-home-activity --user 0 " + pkg + "/" + MainActivity.class.getName());
@@ -258,10 +259,14 @@ final class Setup {
     }
 
     /** Turns the packages off for this user (never uninstalls); returns how many were turned off. */
-    static int disable(LocalAdb adb, List<String> packages) throws Exception {
+    static int disable(Context ctx, LocalAdb adb, List<String> packages) throws Exception {
         int done = 0;
         for (String p : packages) {
-            if (adb.shell("pm disable-user --user 0 " + p).contains("disabled-user")) done++;
+            if (adb.shell("pm disable-user --user 0 " + p).contains("disabled-user")) {
+                done++;
+                // Remembered, so Reverse can turn exactly these back on.
+                Reverse.recordDisabled(ctx, p);
+            }
         }
         return done;
     }

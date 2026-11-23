@@ -23,18 +23,39 @@ public class StandByDream extends DreamService implements MediaWatch.Listener {
         setFullscreen(true);
         media = new MediaWatch(this);
         view = new StandByView(this, getSharedPreferences("standby", MODE_PRIVATE).getInt("face", 0), media);
-        setContentView(view);
+        // The weather outside drawn over it (WeatherFx), and the whole face drifting a little (burn-in).
+        android.widget.FrameLayout stack = new android.widget.FrameLayout(this);
+        stack.setBackgroundColor(android.graphics.Color.BLACK);
+        stack.addView(view, new android.widget.FrameLayout.LayoutParams(-1, -1));
+        stack.addView(new WeatherFx(this), new android.widget.FrameLayout.LayoutParams(-1, -1));
+        setContentView(stack);
     }
+
+    /** Burn-in: every 90 seconds the face glides to a new spot within 18 dp of the centre, over 20 seconds. */
+    private final android.os.Handler drift = new android.os.Handler(android.os.Looper.getMainLooper());
+    private final java.util.Random random = new java.util.Random();
+    private final Runnable driftStep = new Runnable() {
+        @Override
+        public void run() {
+            if (view == null) return;
+            float r = 18 * getResources().getDisplayMetrics().density;
+            view.animate().translationX((random.nextFloat() * 2 - 1) * r).translationY((random.nextFloat() * 2 - 1) * r)
+                    .setDuration(20_000).setInterpolator(new android.view.animation.AccelerateDecelerateInterpolator()).start();
+            drift.postDelayed(this, 90_000);
+        }
+    };
 
     @Override
     public void onDreamingStarted() {
         super.onDreamingStarted();
         media.addListener(this);
         media.start();
+        drift.postDelayed(driftStep, 30_000);
     }
 
     @Override
     public void onDreamingStopped() {
+        drift.removeCallbacks(driftStep);
         media.removeListener(this);
         media.stop();
         super.onDreamingStopped();

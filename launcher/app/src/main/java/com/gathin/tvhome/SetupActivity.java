@@ -407,7 +407,7 @@ public class SetupActivity extends Activity {
             new Thread(() -> {
                 String message;
                 try (LocalAdb adb = LocalAdb.connect(this, 30_000)) {
-                    int n = Setup.disable(adb, cleanup);
+                    int n = Setup.disable(this, adb, cleanup);
                     message = n + " apps turned off.";
                 } catch (Exception e) {
                     message = "That did not work. You can skip this step.";

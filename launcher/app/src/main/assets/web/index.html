@@ -176,6 +176,12 @@
   .typebar input { flex: 1 1 auto; min-width: 0; min-height: 44px; border-radius: 14px; padding: 0 14px; font-size: 17px;
     background: rgba(255,255,255,.12); color: inherit; border: 0; outline: none; }
   .typebar .pill { flex: 0 0 auto; }
+  /* the Remote page's keyboard field: always there, lit while a text box on the TV has its keyboard up */
+  .rkbd { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 6px 6px 6px 14px; transition: box-shadow .3s, background .3s; }
+  .rkbd input { flex: 1 1 auto; min-width: 0; min-height: 40px; font-size: 17px; background: none; border: 0; outline: none; color: inherit; }
+  .rkbd .pill { flex: 0 0 auto; }
+  .rkbd.wants { box-shadow: 0 0 0 2px #fff; background: rgba(255,255,255,.16) !important; }
+  .rkbd.wants input::placeholder { color: #fff; }
   .card .play-hint { position: absolute; top: 16px; right: 16px; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center;
     background: rgba(0,0,0,.5); }
   /* song cards: no blur behind the tags (it repaints every frame of a drag), their own layer, the next one waiting under */
@@ -409,6 +415,15 @@ const typer = {
     if (document.hidden || !state || !state.claimed) return;
     let r; try { r = await api('/api/ime', { check: true }); } catch (e) { return; }
     if (r.error) return;
+    // On the Remote page the keyboard field is always there: light it up instead of sliding the bar in.
+    const field = $('#rkin');
+    if (field) {
+      field.closest('.rkbd').classList.toggle('wants', !!r.shown);
+      if (r.shown) field.type = r.secret ? 'password' : 'text';
+      field.placeholder = r.shown ? 'The TV wants text. Type here.' : 'Type on the TV';
+      if (this.bar) this.close();
+      return;
+    }
     if (r.shown && !this.bar && Date.now() > this.hiddenFor) this.open(r.secret);
     else if (!r.shown && this.bar) this.close();
   },
@@ -421,18 +436,24 @@ const typer = {
         <button class="pill" type="submit">Go</button></form>`;
     document.body.append(bar); this.bar = bar; this.last = '';
     const inp = $('#tyin');
+    this.bind(inp, $('#tyf'));
+    $('#tyx').onclick = () => { this.close(); this.hiddenFor = Date.now() + 20000; };
+    // Phones open the keyboard only for a field focused from a tap; Android Chrome often allows it straight away.
+    inp.focus();
+  },
+  close() { if (this.bar) { this.bar.remove(); this.bar = null; } },
+  // Whatever is typed into inp is typed on the TV as it changes (only the difference is sent, backspace included);
+  // the form's Go sends Enter on the TV.
+  bind(inp, form) {
+    this.last = '';
     inp.oninput = () => {
       const v = inp.value, p = this.last; let i = 0;
       while (i < v.length && i < p.length && v[i] === p[i]) i++;
       const del = p.length - i, add = v.slice(i); this.last = v;
       this.chain = this.chain.then(async () => { if (del) await api('/api/ime', { del }); if (add) await api('/api/ime', { text: add }); }).catch(() => {});
     };
-    $('#tyf').onsubmit = e => { e.preventDefault(); tick(); this.chain = this.chain.then(() => api('/api/ime', { enter: true })).catch(() => {}); inp.value = ''; this.last = ''; inp.blur(); };
-    $('#tyx').onclick = () => { this.close(); this.hiddenFor = Date.now() + 20000; };
-    // Phones open the keyboard only for a field focused from a tap; Android Chrome often allows it straight away.
-    inp.focus();
+    form.onsubmit = e => { e.preventDefault(); tick(); this.chain = this.chain.then(() => api('/api/ime', { enter: true })).catch(() => {}); inp.value = ''; this.last = ''; inp.blur(); };
   },
-  close() { if (this.bar) { this.bar.remove(); this.bar = null; } },
 };
 // A phone tab can stay open for days. When the TV has a newer page than this one, reload into it.
 let build = 0;
@@ -655,6 +676,10 @@ function guideView() {
   app.innerHTML = `<h1>House guide</h1>
     ${s.rules.length ? `<div class="section"><span class="eyebrow">House rules</span><div class="list glass">
       ${s.rules.map(r => `<div class="row" style="justify-content:flex-start;gap:12px"><span style="color:#64b5ff">•</span><span>${esc(r)}</span></div>`).join('')}</div></div>` : ''}
+    ${(s.places || []).length ? `<div class="section"><span class="eyebrow">Around here</span><div class="list glass">
+      ${s.places.map(p => `<a class="row place" href="${esc(p.maps)}" target="_blank" rel="noopener" style="gap:12px">
+        <span class="two-line" style="flex:1 1 auto;min-width:0">${p.kind ? `<small style="color:#ffb86b;text-transform:uppercase;letter-spacing:.08em">${esc(p.kind)}</small>` : ''}<span>${esc(p.name)}</span>${p.note ? `<small>${esc(p.note)}</small>` : ''}</span>
+        <span class="pill" style="flex:0 0 auto;font-size:13px">Map</span></a>`).join('')}</div></div>` : ''}
     <div class="section"><span class="eyebrow">Your stay</span><div class="list glass">
       <div class="row"><span class="k">Check-in</span><span class="v">from ${esc(s.checkin)}</span></div>
       <div class="row"><span class="k">Check-out</span><span class="v">by ${esc(s.checkout)}${s.checkout_day ? ', ' + esc(s.checkout_day) : ''}</span></div>
@@ -698,9 +723,12 @@ function remoteView() {
       <button class="round glass" data-k="playpause" aria-label="Play or pause"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5l8 7-8 7z"/><rect x="14" y="5" width="2.6" height="14" rx="1"/><rect x="18.5" y="5" width="2.6" height="14" rx="1"/></svg></button>
       <div class="volume glass"><button data-k="voldown" aria-label="Volume down">−</button><button data-k="mute" aria-label="Mute" style="font-size:13px;width:auto;padding:0 8px;border-radius:999px">Mute</button><button data-k="volup" aria-label="Volume up">+</button></div>
     </div>` : `<p class="note" style="flex:0 0 auto">The arrows need debugging switched on in the TV’s setup. Apps and shows still open from Watch.</p>`}
+    ${s.keys ? `<form class="rkbd field glass" id="rkf">${svg('kbd', 18)}<input id="rkin" type="text" autocomplete="off" autocapitalize="none" spellcheck="false"
+        enterkeyhint="go" placeholder="Type on the TV" aria-label="Type on the TV"><button class="pill" type="submit">Go</button></form>` : ''}
     <button class="btn solid ask-btn" id="askshow">${svg('search', 20, 2.2)}Find a show</button>`;
   const send = k => { tick(); api('/api/remote', { key: k }).catch(e => toast(e.message)); };
   document.querySelectorAll('[data-k]').forEach(b => b.onclick = () => send(b.dataset.k));
+  if ($('#rkin')) { typer.bind($('#rkin'), $('#rkf')); typer.close(); typer.check(); }
   $('#askshow').onclick = () => { go('watch'); setTimeout(() => $('#wq') && $('#wq').focus(), 50); };
   const pad = $('#pad');
   if (pad) {
@@ -1404,13 +1432,70 @@ function todayView(head) {
       ${toggleRow('gremote', 'Guest remote', 'Guests control the TV from their phone', h.guest_remote !== false)}
       ${toggleRow('hremote', 'Household remote', 'In Home mode, anyone on the Wi-Fi who scans gets the remote, Watch and Music', h.home_remote !== false)}
     </div></div>
-    <div class="section"><button class="btn glass" id="newstay">${svg('plus', 20, 2.2)}New stay</button></div>`;
+    <div class="section"><button class="btn glass" id="newstay">${svg('plus', 20, 2.2)}New stay</button></div>
+    <div class="section" id="peers" hidden><span class="eyebrow">Your other TVs</span><div class="list glass" id="peerlist"></div>
+      <div class="note">TVs with this launcher on the same Wi-Fi. Sign in once with each TV’s PIN.</div></div>
+    <div class="section"><span class="eyebrow">Old home screen</span>
+      <button class="btn glass" id="reverse" style="color:#ff6b6b">Go back to the TV's own home screen</button>
+      <div class="note">The TV's original launcher becomes Home again. This app stays installed; open it on the TV to set it up again.</div></div>`;
   if ($('#edit')) $('#edit').onclick = () => { hostTab = 'stay'; hostView(); };
   document.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => save({ mode: b.dataset.mode }, 'TV is in ' + b.textContent + ' mode').then(hostView));
   $('#locked').onchange = e => save({ locked: e.target.checked }, e.target.checked ? 'Locked to Guest mode' : 'Unlocked');
   $('#hremote').onchange = e => save({ home_remote: e.target.checked }, e.target.checked ? 'Household remote on' : 'Only your phone now');
   $('#gremote').onchange = e => save({ guest_remote: e.target.checked }, e.target.checked ? 'Guest remote on' : 'Guest remote off');
   $('#newstay').onclick = () => { hostTab = 'stay'; stayView(head, true); bindHead(); };
+  peerDashboard();
+  $('#reverse').onclick = async () => {
+    if (!confirm("Go back to the TV's own home screen?\n\nHome goes back to the TV's original launcher and this phone remote stops working until it's set up again.")) return;
+    const keep = confirm('Keep the ad and tracking apps that setup turned off switched off?\n\nOK keeps them off. Cancel turns everything back on as it was.');
+    tick();
+    try { const r = await api('/api/reverse', { keep_off: keep }); toast(r.error || r.note || 'Done'); } catch (e) { toast(e.message); }
+  };
+}
+// The host's dashboard of several TVs: the others on this Wi-Fi, each with its stay, door code and whether it's on.
+// Each TV has its own PIN and session; this page keeps the sessions for the others (tvhome-peers).
+const peerSessions = {
+  all() { try { return JSON.parse(localStorage.getItem('tvhome-peers') || '{}'); } catch (e) { return {}; } },
+  set(url, s) { const a = this.all(); if (s) a[url] = s; else delete a[url]; try { localStorage.setItem('tvhome-peers', JSON.stringify(a)); } catch (e) {} },
+};
+async function peerFetch(url, path, body, s) {
+  const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 5000);
+  try {
+    const r = await fetch(url + path, { method: body ? 'POST' : 'GET', signal: ctl.signal,
+      headers: { 'Content-Type': 'application/json', 'X-Session': s || '' }, body: body ? JSON.stringify(body) : undefined });
+    const j = await r.json().catch(() => ({})); if (!r.ok) throw Object.assign(new Error(j.error || 'Not allowed'), { status: r.status }); return j;
+  } finally { clearTimeout(t); }
+}
+async function peerDashboard() {
+  let r; try { r = await api('/api/peers'); } catch (e) { return; }
+  const box = $('#peers'), list = $('#peerlist'); if (!box || !r.tvs || !r.tvs.length) return;
+  box.hidden = false;
+  list.innerHTML = r.tvs.map((t, i) => `<div class="row" style="gap:12px;align-items:flex-start;padding:12px 0" id="peer${i}">
+    <span class="two-line" style="flex:1 1 auto;min-width:0"><span>${esc(t.name)}</span><small class="muted">Checking…</small></span></div>`).join('');
+  const sessions = peerSessions.all();
+  r.tvs.forEach(async (t, i) => {
+    const row = $('#peer' + i); if (!row) return;
+    const show = (sub, action) => { row.innerHTML = `<span class="two-line" style="flex:1 1 auto;min-width:0"><span>${esc(t.name)}</span><small>${sub}</small></span>${action || ''}`; };
+    const s = sessions[t.url];
+    if (!s) {
+      show('<span style="color:#30d158">● On</span> · not signed in', `<button class="pill" data-pin="${i}" style="font-size:13px">Sign in</button>`);
+      row.querySelector('[data-pin]').onclick = async () => {
+        const pin = (prompt(`PIN for ${t.name}:`) || '').trim(); if (!pin) return;
+        try { const l = await peerFetch(t.url, '/api/login', { pin }); peerSessions.set(t.url, l.session); peerDashboard(); }
+        catch (e) { toast(e.message || 'Wrong PIN'); }
+      };
+      return;
+    }
+    try {
+      const h = await peerFetch(t.url, '/api/host', null, s), g = h.guest || {};
+      const mode = h.mode === 'home' ? 'Home mode' : h.mode === 'kids' ? 'Kids mode' : 'Guest mode';
+      const stay = g.names ? `${esc(g.names)} · ${esc(g.arrive || '')} → ${esc(g.depart || '')}${h.door_code ? ` · door <b>${esc(h.door_code)}</b>` : ''}` : 'No one staying';
+      show(`<span style="color:#30d158">● On</span> · ${mode}<br>${stay}`, `<a class="pill" href="${esc(t.url)}/" target="_blank" rel="noopener" style="font-size:13px">Open</a>`);
+    } catch (e) {
+      if (e.status === 401) { peerSessions.set(t.url, null); return peerDashboard(); }
+      show('<span style="color:#ff6b6b">● Not answering</span>');
+    }
+  });
 }
 function bindHead() { document.querySelectorAll('[data-ht]').forEach(b => { b.classList.toggle('on', b.dataset.ht === hostTab); b.onclick = () => { tick(); hostTab = b.dataset.ht; actions(null); hostView(); }; }); }
 function stayView(head, fresh) {
@@ -1426,7 +1511,9 @@ function stayView(head, fresh) {
     <div class="section"><span class="eyebrow">Door code</span><div class="list glass">
       <label class="row"><span>Code</span><input id="door" inputmode="numeric" value="${esc(fresh ? '' : host.door_code)}" style="font-weight:600;letter-spacing:.1em"></label></div>
       <div class="note">Only shown from the arrive date until an hour after check-out. Between stays the TV shows no names and no code.</div></div>
-    ${g.names ? `<div class="section"><button class="btn glass red" id="end">End this stay now</button></div>` : ''}
+    ${g.names ? `<div class="section"><button class="btn glass" id="cono">Check out now</button>
+      <div class="note">Signs out of the apps, clears history and the music queue, and shows the thank-you screen.</div></div>
+      <div class="section"><button class="btn glass red" id="end">End this stay now</button></div>` : ''}
     <p class="err" id="err"></p>`;
   actions(`<button class="btn solid" id="savestay">Save stay</button>`);
   $('#savestay').onclick = async () => {
@@ -1436,11 +1523,16 @@ function stayView(head, fresh) {
     if (depart < arrive) return $('#err').textContent = 'Depart must be after arrive.';
     if (await save({ guest: { names, arrive, depart }, door_code: $('#door').value.trim() }, 'Stay saved')) { hostTab = 'today'; actions(null); hostView(); }
   };
+  if ($('#cono')) $('#cono').onclick = async () => {
+    if (!confirm(`Check ${g.names} out now?`)) return;
+    tick(); try { const r = await api('/api/checkout', {}); toast(r.error || r.note); } catch (e) { toast(e.message); }
+  };
   if ($('#end')) $('#end').onclick = async () => { if (confirm('End this stay now? The TV stops showing their names and the door code.')) { if (await save({ guest: null, door_code: '' }, 'Stay ended')) { hostTab = 'today'; actions(null); hostView(); } } };
 }
 function placeView(head) {
   const h = host;
   let rules = [...(h.rules || [])];
+  let places = (h.places || []).map(p => ({ ...p }));
   const render = () => {
     app.innerHTML = head + `<h1 style="margin-top:14px">Your place</h1>
       <div class="section"><div class="list glass">
@@ -1457,15 +1549,33 @@ function placeView(head) {
           <button class="rule-x" data-del="${i}" aria-label="Remove rule">−</button>
           <input data-rule="${i}" value="${esc(r)}" style="text-align:left" aria-label="Rule ${i + 1}">
           <button class="move" data-up="${i}" aria-label="Move up" ${i ? '' : 'disabled'}>${svg('chev', 18, 2.2)}</button></div>`).join('')
-          : `<div class="row muted">No rules yet</div>`}</div></div>`;
+          : `<div class="row muted">No rules yet</div>`}</div></div>
+      <div class="section"><div style="display:flex;justify-content:space-between;align-items:baseline;padding:0 4px 8px">
+        <span class="eyebrow">Around here</span><button class="link" id="addp">Add place</button></div>
+        ${places.length ? places.map((p, i) => `<div class="list glass" style="margin-bottom:10px">
+          <label class="row"><span>Name</span><input data-p="${i}" data-k="name" value="${esc(p.name)}" placeholder="e.g. Java House"></label>
+          <label class="row"><span>Kind</span><input data-p="${i}" data-k="kind" value="${esc(p.kind)}" placeholder="Coffee, Dinner, Walk…"></label>
+          <label class="row"><span>Why go</span><input data-p="${i}" data-k="note" value="${esc(p.note)}" placeholder="Best flat white in town"></label>
+          <label class="row"><span>Address</span><input data-p="${i}" data-k="address" value="${esc(p.address)}" placeholder="For the map"></label>
+          <div class="row"><button class="link" data-pdel="${i}" style="color:#ff6b6b">Remove</button></div></div>`).join('')
+          : `<div class="list glass"><div class="row muted">No places yet</div></div>`}
+        <div class="note">Guests see these on the TV, with a code that opens each one in Maps, and on their phone’s Guide.</div></div>
+      <div class="section"><span class="eyebrow">Check-out</span><div class="list glass">
+        ${toggleRow('autoco', 'Automatic check-out', 'At check-out time: sign out of apps, clear history and the music queue, then say thanks', h.auto_checkout !== false)}
+        <label class="row"><span>Review link</span><input id="review" value="${esc(h.review_url)}" placeholder="https://…" inputmode="url"></label></div>
+        <div class="note">The thank-you screen shows this as a QR code. Check-in at check-in time turns the TV to the welcome screen.</div></div>`;
     bindHead();
     actions(`<button class="btn solid" id="saveplace">Save</button>`);
     const sync = () => document.querySelectorAll('[data-rule]').forEach(i => rules[+i.dataset.rule] = i.value);
-    const keep = () => { h.place = $('#place').value; h.about = $('#about').value; h.wifi_name = $('#wifi').value; h.wifi_password = $('#wifipw').value; h.checkin = $('#cin').value; h.checkout = $('#cout').value; };
+    const syncP = () => document.querySelectorAll('[data-p]').forEach(i => places[+i.dataset.p][i.dataset.k] = i.value);
+    const keep = () => { syncP(); h.review_url = $('#review').value; h.auto_checkout = $('#autoco').checked; h.place = $('#place').value; h.about = $('#about').value; h.wifi_name = $('#wifi').value; h.wifi_password = $('#wifipw').value; h.checkin = $('#cin').value; h.checkout = $('#cout').value; };
     $('#add').onclick = () => { sync(); keep(); rules.push(''); render(); document.querySelector(`[data-rule="${rules.length - 1}"]`).focus(); };
     document.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { sync(); keep(); rules.splice(+b.dataset.del, 1); render(); });
     document.querySelectorAll('[data-up]').forEach(b => b.onclick = () => { sync(); keep(); const i = +b.dataset.up; [rules[i - 1], rules[i]] = [rules[i], rules[i - 1]]; render(); });
-    $('#saveplace').onclick = () => { sync(); save({ place: $('#place').value, about: $('#about').value, wifi_name: $('#wifi').value,
+    $('#addp').onclick = () => { sync(); keep(); places.push({ name: '', kind: '', note: '', address: '' }); render(); document.querySelector(`[data-p="${places.length - 1}"]`).focus(); };
+    document.querySelectorAll('[data-pdel]').forEach(b => b.onclick = () => { sync(); keep(); places.splice(+b.dataset.pdel, 1); render(); });
+    $('#saveplace').onclick = () => { sync(); syncP(); save({ review_url: $('#review').value.trim(), auto_checkout: $('#autoco').checked,
+      places: places.filter(p => (p.name || '').trim()), place: $('#place').value, about: $('#about').value, wifi_name: $('#wifi').value,
       wifi_password: $('#wifipw').value, checkin: $('#cin').value || '15:00', checkout: $('#cout').value || '10:00',
       rules: rules.map(r => r.trim()).filter(Boolean) }); };
   };

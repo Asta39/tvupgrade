@@ -67,6 +67,16 @@ Scroll down for the controls. **Night Shift** warms everything on screen, every 
 |---|---|
 | ![Control Center controls](screenshots/control-center-controls.jpg) | ![Night Shift on](screenshots/night-shift.jpg) |
 
+**Theme packs:** Control Center's **Theme** tile cycles four looks without touching your theme: **Dusk** (your theme
+as it is), **Mono** (black-and-white wallpapers, the clock included), **Cinema** (darker, warmer pictures and a gold
+focus glow) and **Seasonal** (the glow follows the month: December red, winter blue, spring green, summer amber,
+autumn orange).
+
+**Updates from the TV:** when a new release is out, a card appears under *Sound output* in Control Center. **Download**
+fetches it with a progress bar and **Install** puts it over the current version, keeping your settings. The first
+time, Android asks you to let Home install apps. **Later** hides that version until a newer one comes out. Only an
+APK from this repository, signed with the same key, is ever installed.
+
 **Profiles:** pick the person in Control Center's top-right chip. Each has their own dock and wallpapers
 (here Bond, with Prime Video and Reezn in the dock):
 
@@ -127,6 +137,11 @@ puts Google's back.
 
 ![Stock Google TV home](screenshots/before.jpg)
 
+**The weather, outside, in the screensaver.** When it's raining where the TV is, rain falls across StandBy; snow when
+it snows, slow fog banks on foggy days, the odd lightning flash in a storm, and nothing under a clear sky. It uses the
+weather Home already fetched, so it costs no extra request. Against burn-in, the whole face drifts a little to a new
+spot every 90 seconds.
+
 ## Guest mode: a TV for your Airbnb
 
 Switch the TV to **Guest mode** and it becomes a welcome screen for the people staying: their names, the stay, the
@@ -160,6 +175,9 @@ When a text box on the TV opens its on-screen keyboard (a search, a sign-in), a 
 that has the page open. What you type appears on the TV as you go, backspace included, and **Go** submits it.
 Password boxes stay hidden on the phone. Apps that draw their own keyboard instead of Android's (YouTube's search,
 for one) can't be typed into this way.
+
+The **Remote** page also has a *Type on the TV* field under the buttons. Tap it whenever a screen on the TV wants
+text: it lights up while the TV's keyboard is open, and works the same way.
 
 <img src="screenshots/mockup-phone-keyboard.png" alt="The typing bar over the remote" width="380">
 
@@ -202,6 +220,29 @@ while it waits. A song only counts as started when its title and artist match; i
 or another track on the album, the TV switches to the exact video at once, and Bitchord is paused as each song ends
 so its own picks never play between songs. Spotify's TV app was tried first; it accepts no play requests from other
 apps.
+
+### Check-in and check-out, on time
+
+At check-in time on the arrival day, the TV turns to the welcome screen, ready for them. At check-out time on the
+last day it checks them out by itself: it signs out of every streaming app they signed in to, clears Continue
+watching, the music queue and any Watch together round, and shows **Thanks for staying** with a QR code for your
+review link. Any key, or five minutes, goes on to the welcome screen for the next guests.
+
+Set the review link and turn this on or off on the phone under **Host › Place › Check-out**. **Host › Stay › Check out
+now** does it straight away. Signing out of apps needs debugging on in the TV's setup; everything else works without.
+
+### Around here: your local guide
+
+Add the places you'd send a friend under **Host › Place › Around here**: a name, what kind of place, why go, and an
+address. Guests find them on the welcome screen's **Around here** chip, as cards that each show a QR code opening the
+place in Maps on their phone, and on their phone's Guide page with a Map button.
+
+### All your TVs on one phone
+
+Hosts with more than one TV on the same Wi-Fi (several units in one building) see the others on **Host › Today ›
+Your other TVs**: whether each is on, its mode, who's staying and when, and the door code. Sign in to each TV once
+with its own PIN; **Open** goes to its page. TVs find each other on the local network, so TVs in other buildings
+don't show up.
 
 ### The arrival show
 
@@ -370,6 +411,14 @@ model's list in [cleanyourtv's examples](https://github.com/Gathin23/cleanyourtv
 - **Bring back Keep watching or the network pill:** set `"keep_watching": true` / `"show_network_pill": true`.
 
 ### Undo
+
+**On the TV, no computer:** Control Center → **Old home** (or on the host's phone: Host → *Go back to the TV's own
+home screen*). After an "are you sure", it asks whether to keep the ad and tracking apps off, then gives Home back
+to the TV's own launcher, switches this launcher's helpers off and restores the screensaver. The app stays
+installed: open it again and it starts with the setup, and becomes Home only when that's finished. It needs USB or
+Network debugging on, like setup.
+
+**From a computer:**
 
 ```bash
 scripts/restore.sh <tv ip>    # re-enables everything, gives Home back to Google TV, resets DNS

@@ -9,3 +9,6 @@ launcher/local.properties
 *.apk
 __pycache__/
 .DS_Store
+
+# The Magnific source mockup: its licence allows use in designs, not redistributing the file itself.
+social/mockup/iphone16promax.jpg

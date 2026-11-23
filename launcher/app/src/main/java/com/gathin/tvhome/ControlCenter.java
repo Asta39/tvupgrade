@@ -166,10 +166,11 @@ final class ControlCenter implements MediaWatch.Listener {
                 lp(ViewGroup.LayoutParams.MATCH_PARENT, 8));
         col.addView(infoRow(R.drawable.ic_cc_airplay, audioOutput(), "Sound output",
                 v -> { close(); host.openSoundSettings(); }), lp(ViewGroup.LayoutParams.MATCH_PARENT, 12));
+        col.addView(updateCard = buildUpdateCard(), lp(ViewGroup.LayoutParams.MATCH_PARENT, 8));
         col.addView(infoRow(networkIcon(), networkText(), "Network",
                 v -> { close(); host.openNetworkSettings(); }), lp(ViewGroup.LayoutParams.MATCH_PARENT, 8));
 
-        LinearLayout row1 = tileRow(), row2 = tileRow(), row3 = tileRow();
+        LinearLayout row1 = tileRow(), row2 = tileRow(), row3 = tileRow(), row4 = tileRow();
         row1.addView(tile(R.drawable.ic_cc_power, "Sleep", v -> {
             close();
             if (!SleepService.sleep()) toast("Turn on Sleep in Accessibility to use this");
@@ -191,13 +192,21 @@ final class ControlCenter implements MediaWatch.Listener {
         }));
         row2.addView(toggle(R.drawable.ic_cc_dnd, "Do Not Disturb", 0xFF5E5CE6, this::dndOn, this::setDnd));
         row3.addView(tile(R.drawable.ic_picture, "Wallpaper", v -> host.nextWallpaper()));
+        // Theme packs (ThemePacks): each OK moves to the next and Home redraws with it.
+        View pack = tile(R.drawable.ic_cc_sparkle, ThemePacks.current(activity), v -> {
+            String n = ThemePacks.next(activity);
+            toast("Theme: " + n);
+            // Dismissed at once, not with the slide-out: recreate() takes the window it would animate in.
+            if (dialog != null) dialog.dismiss();
+            activity.getWindow().getDecorView().post(activity::recreate);
+        });
+        row4.addView(pack);
         row3.addView(tile(R.drawable.ic_input, "Inputs", v -> { close(); host.showInputs(); }));
         row3.addView(tile(R.drawable.ic_settings, "Settings", v -> { close(); host.openSettings(); }));
         col.addView(row1, lp(ViewGroup.LayoutParams.MATCH_PARENT, 18));
         col.addView(row2, lp(ViewGroup.LayoutParams.MATCH_PARENT, 12));
         col.addView(row3, lp(ViewGroup.LayoutParams.MATCH_PARENT, 12));
         // This fork's Guest mode: the welcome screen for an Airbnb or rental becomes Home (GuestActivity).
-        LinearLayout row4 = tileRow();
         row4.addView(tile(R.drawable.ic_cc_phone, "Phone remote", v -> {
             close();
             activity.startActivity(new android.content.Intent(activity, PhoneActivity.class));
@@ -215,7 +224,17 @@ final class ControlCenter implements MediaWatch.Listener {
                     .setNegativeButton("Cancel", null)
                     .show();
         }));
+        // Back to the TV's own launcher, without uninstalling (Reverse); opening this app again starts setup.
+        LinearLayout row5 = tileRow();
+        row5.addView(tile(R.drawable.ic_cc_undo, "Old home", v -> {
+            close();
+            Reverse.ask(activity);
+        }));
+        // Two empty slots keep Old home the size of every other control.
+        row5.addView(spacer());
+        row5.addView(spacer());
         col.addView(row4, lp(ViewGroup.LayoutParams.MATCH_PARENT, 12));
+        col.addView(row5, lp(ViewGroup.LayoutParams.MATCH_PARENT, 12));
         return p;
     }
 
@@ -276,6 +295,152 @@ final class ControlCenter implements MediaWatch.Listener {
         dot.setColor(PROFILE_COLORS[index % PROFILE_COLORS.length]);
         initial.setBackground(dot);
         return initial;
+    }
+
+    // ---- updates: a card under Sound output when a newer release is out (Updater) ---------------------------
+
+    private LinearLayout updateCard;
+    private TextView updateTitle, updateSub;
+    private android.widget.ProgressBar updateBar;
+    private LinearLayout updateButtons;
+    private Updater.Release release;
+    /** One download at a time, across openings of the panel. */
+    private static volatile boolean downloading;
+    private static volatile long dlDone, dlTotal;
+
+    private LinearLayout buildUpdateCard() {
+        LinearLayout card = new LinearLayout(activity);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(px(14), px(12), px(14), px(12));
+        card.setClipChildren(false);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(0x33FFFFFF);
+        bg.setCornerRadius(px(18));
+        card.setBackground(bg);
+        updateTitle = new TextView(activity);
+        style(updateTitle, 14, Color.WHITE, R.string.font_medium, 0f);
+        updateSub = new TextView(activity);
+        style(updateSub, 12, 0x99FFFFFF, R.string.font_regular, 0f);
+        updateSub.setSingleLine(false);
+        updateSub.setMaxLines(4);
+        card.addView(updateTitle);
+        card.addView(updateSub, lp(ViewGroup.LayoutParams.MATCH_PARENT, 4));
+        updateBar = new android.widget.ProgressBar(activity, null, android.R.attr.progressBarStyleHorizontal);
+        updateBar.setMax(1000);
+        updateBar.setProgressTintList(android.content.res.ColorStateList.valueOf(Color.WHITE));
+        updateBar.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(0x40FFFFFF));
+        updateBar.setVisibility(View.GONE);
+        card.addView(updateBar, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, px(10)));
+        updateButtons = new LinearLayout(activity);
+        updateButtons.setClipChildren(false);
+        card.addView(updateButtons, lp(ViewGroup.LayoutParams.MATCH_PARENT, 10));
+        card.setVisibility(View.GONE);
+        new Thread(() -> {
+            Updater.Release r = Updater.check(activity);
+            activity.runOnUiThread(() -> {
+                release = r;
+                if (r != null || downloading || Updater.apk(activity).exists()) showUpdate();
+            });
+        }, "update-check").start();
+        return card;
+    }
+
+    private void showUpdate() {
+        if (updateCard == null) return;
+        updateCard.setVisibility(View.VISIBLE);
+        updateButtons.removeAllViews();
+        String v = release != null ? "Version " + release.version : "A new version";
+        if (downloading) {
+            updateTitle.setText("Downloading " + v.toLowerCase(java.util.Locale.ROOT));
+            updateBar.setVisibility(View.VISIBLE);
+            showProgress(dlDone, dlTotal);
+            // Opened again mid-download: follow along from the shared counters.
+            updateBar.postDelayed(() -> { if (isOpen()) showUpdate(); }, 500);
+            return;
+        }
+        updateBar.setVisibility(View.GONE);
+        if (Updater.apk(activity).exists()) {
+            updateTitle.setText(v + " is ready");
+            updateSub.setText("Install it over this one. Your apps, profiles and settings stay.");
+            updateButtons.addView(pillButton("Install", true, x -> install()));
+            updateButtons.addView(pillButton("Later", false, x -> later()));
+            return;
+        }
+        updateTitle.setText("Update available · " + v);
+        String size = release != null && release.size > 0 ? release.size / (1024 * 1024) + " MB" : "";
+        updateSub.setText(release != null && !release.notes.isEmpty() ? release.notes : ("A new release of this launcher. " + size).trim());
+        updateButtons.addView(pillButton("Download", true, x -> download()));
+        updateButtons.addView(pillButton("Later", false, x -> later()));
+    }
+
+    private void showProgress(long done, long total) {
+        if (updateBar == null) return;
+        updateBar.setProgress(total > 0 ? (int) (done * 1000 / total) : 0);
+        updateSub.setText(total > 0 ? (done * 100 / total) + "% · " + done / (1024 * 1024) + " of " + total / (1024 * 1024) + " MB"
+                : done / (1024 * 1024) + " MB");
+    }
+
+    private void download() {
+        if (release == null || downloading) return;
+        downloading = true;
+        dlDone = 0;
+        dlTotal = release.size;
+        showUpdate();
+        Updater.Release r = release;
+        new Thread(() -> {
+            String err = Updater.download(activity.getApplicationContext(), r, (d, t) -> {
+                dlDone = d;
+                dlTotal = t;
+                showProgress(d, t);
+            });
+            downloading = false;
+            activity.runOnUiThread(() -> {
+                if (err != null) toast(err);
+                showUpdate();
+                // Ready: Install takes focus, so one more OK installs it.
+                if (err == null && updateButtons.getChildCount() > 0) updateButtons.getChildAt(0).requestFocus();
+            });
+        }, "update-download").start();
+    }
+
+    private void install() {
+        // The first time, Android asks the user to let this launcher install apps; Install again after that.
+        if (!Updater.canInstall(activity)) return;
+        String err = Updater.install(activity);
+        if (err != null) toast(err);
+        else close();
+    }
+
+    private void later() {
+        if (release != null) Updater.later(activity, release.version);
+        Updater.apk(activity).delete();
+        updateCard.setVisibility(View.GONE);
+    }
+
+    private View pillButton(String label, boolean primary, View.OnClickListener action) {
+        TextView b = new TextView(activity);
+        // Only focus is solid white, so it's always clear which button OK presses; the main one is a brighter glass.
+        style(b, 13, Color.WHITE, R.string.font_medium, 0f);
+        b.setText(label);
+        b.setGravity(Gravity.CENTER);
+        b.setPadding(px(18), px(9), px(18), px(9));
+        b.setFocusable(true);
+        b.setClickable(true);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setCornerRadius(px(20));
+        int rest = primary ? 0x55FFFFFF : CHIP;
+        bg.setColor(rest);
+        b.setBackground(bg);
+        b.setOnClickListener(action);
+        b.setOnFocusChangeListener((v, f) -> {
+            bg.setColor(f ? CHIP_FOCUSED : rest);
+            b.setTextColor(f ? INK : Color.WHITE);
+            lift(v, f, 1.06f);
+        });
+        LinearLayout.LayoutParams l = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        if (updateButtons.getChildCount() > 0) l.leftMargin = px(10);
+        b.setLayoutParams(l);
+        return b;
     }
 
     /** A status line (audio output, network) that opens the matching settings page. */
@@ -533,6 +698,12 @@ final class ControlCenter implements MediaWatch.Listener {
         r.setClipChildren(false);
         r.setGravity(Gravity.CENTER_HORIZONTAL);
         return r;
+    }
+
+    private View spacer() {
+        View v = new View(activity);
+        v.setLayoutParams(new LinearLayout.LayoutParams(0, 1, 1f));
+        return v;
     }
 
     /** A round control with its name under it, as in tvOS Control Center. */

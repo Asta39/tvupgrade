@@ -165,6 +165,15 @@ final class GlassClock extends View {
             // 3. The picture behind, at this view's pixels.
             Bitmap src = software(pic);
             if (src == null) return null;
+            // A theme pack's filter (Mono, Cinema): the glass refracts the picture as it looks on screen.
+            android.graphics.ColorFilter pack = ThemePacks.wallpaperFilter();
+            if (pack != null) {
+                Bitmap tinted = Bitmap.createBitmap(src.getWidth(), src.getHeight(), Bitmap.Config.ARGB_8888);
+                Paint fp = new Paint();
+                fp.setColorFilter(pack);
+                new android.graphics.Canvas(tinted).drawBitmap(src, 0, 0, fp);
+                src = tinted;
+            }
             int sw = src.getWidth(), sh = src.getHeight();
             float sx0 = map[0], sy0 = map[1], kx = (map[2] - map[0]) / w, ky = (map[3] - map[1]) / h;
 

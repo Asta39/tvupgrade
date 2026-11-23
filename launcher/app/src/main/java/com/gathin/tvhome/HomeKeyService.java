@@ -140,6 +140,11 @@ public class HomeKeyService extends AccessibilityService {
         if (running == this) running = null;
         stopWaitingForUnlock();
         if (screenOnReceiver != null) unregisterReceiver(screenOnReceiver);
+        if (stockUpdates != null) {
+            unregisterReceiver(stockUpdates);
+            stockUpdates = null;
+        }
+        handler.removeCallbacksAndMessages(null);
         if (standbyExit != null) {
             try {
                 unregisterReceiver(standbyExit);
@@ -202,9 +207,8 @@ public class HomeKeyService extends AccessibilityService {
         stockHomePackage = config.stockHomeRedirect;
         if (!config.stockHomeRedirect.isEmpty()) {
             Intent home = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).setPackage(config.stockHomeRedirect);
-            for (ResolveInfo ri : getPackageManager().queryIntentActivities(home, PackageManager.MATCH_DISABLED_COMPONENTS)) {
-                stockHome.add(ri.activityInfo.name);
-            }
+            loadStockHome();
+            watchStockHomeUpdates();
         }
         // power_on_home, off by default. Not with boot_to_live_tv, or with Live TV picked as the Open on start app:
         // those open Live TV on purpose at boot.
@@ -227,6 +231,11 @@ public class HomeKeyService extends AccessibilityService {
             setServiceInfo(info);
         }
         if (!stockHome.isEmpty() || !powerOnLiveTv.isEmpty()) probeAtBoot();
+        // The stock home may already be on screen when this helper (re)connects: after an update of this app, or after
+        // a cleaner killed it. No window change comes for it, so look at what's in front for the next few seconds.
+        if (!stockHome.isEmpty()) {
+            for (long ms : CONNECT_CHECKS_MS) handler.postDelayed(this::stockHomeInFrontNow, ms);
+        }
         armStandbyExit();
         holdAppKeys = RemoteKeys.parseHoldAppKeys(config.appKeys);
         holdAppScancodes = RemoteKeys.parseHoldAppScancodes(config.appKeys);
@@ -282,9 +291,15 @@ public class HomeKeyService extends AccessibilityService {
             if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) openHome();
             return true;
         }
+        // stock_home_redirect: take Home here and open this launcher straight away. Passing it on lets the system
+        // bring the stock launcher's task forward first (launcherx on Google TV), which then has to be bounced back,
+        // and stays on screen for as long as that takes (a cold start after the TV's cleaner killed this process).
         if (event.getKeyCode() == KeyEvent.KEYCODE_HOME && !stockHome.isEmpty()) {
-            redirectHomeKey(event);
-            return false;
+            if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) {
+                openHome();
+                confirmHome();
+            }
+            return true;
         }
         if (event.getKeyCode() != KeyEvent.KEYCODE_ALL_APPS) return false;
         if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) openHome();
@@ -312,6 +327,11 @@ public class HomeKeyService extends AccessibilityService {
                 // a dialog, panel or overlay: the app under it is still in front
             }
         }
+        if (!stockHome.isEmpty() && event.getPackageName() != null && event.getClassName() != null) {
+            String cls0 = event.getClassName().toString();
+            if (stockHome.contains(cls0)) stockHomeInFront = true;
+            else if (isActivity(event.getPackageName().toString(), cls0)) stockHomeInFront = false;
+        }
         // power_on_home: the firmware opened Live TV by itself at power-on, before anyone pressed a key.
         if (powerOnRedirect(powerOnLiveTv, event.getPackageName(), SystemClock.elapsedRealtime(), powerOnUntil)) {
             openHome();
@@ -319,10 +339,84 @@ public class HomeKeyService extends AccessibilityService {
         }
         // stock_home_redirect: the firmware turned the stock launcher back on and its home screen came up.
         CharSequence cls = event.getClassName();
-        if (!stockHome.isEmpty() && cls != null && stockHome.contains(cls.toString())) openHome();
+        if (!stockHome.isEmpty() && cls != null && stockHome.contains(cls.toString())) {
+            openHome();
+            confirmHome();
+        }
+    }
+
+    /** The stock launcher's HOME activities, and the activities behind any alias, which is what window events name. */
+    private void loadStockHome() {
+        stockHome.clear();
+        if (stockHomePackage.isEmpty()) return;
+        Intent home = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).setPackage(stockHomePackage);
+        for (ResolveInfo ri : getPackageManager().queryIntentActivities(home, PackageManager.MATCH_DISABLED_COMPONENTS)) {
+            stockHome.add(ri.activityInfo.name);
+            if (ri.activityInfo.targetActivity != null) stockHome.add(ri.activityInfo.targetActivity);
+        }
+    }
+
+    /** Play Store updates of the stock launcher (launcherx updates itself overnight) can rename its home activities:
+     *  read them again after every update, instead of keeping the names from when this service bound. */
+    private BroadcastReceiver stockUpdates;
+
+    private void watchStockHomeUpdates() {
+        if (stockUpdates != null) return;
+        stockUpdates = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if (intent.getData() == null || !stockHomePackage.equals(intent.getData().getSchemeSpecificPart())) return;
+                loadStockHome();
+            }
+        };
+        IntentFilter f = new IntentFilter();
+        f.addAction(Intent.ACTION_PACKAGE_ADDED);
+        f.addAction(Intent.ACTION_PACKAGE_REPLACED);
+        f.addAction(Intent.ACTION_PACKAGE_CHANGED);
+        f.addDataScheme("package");
+        registerReceiver(stockUpdates, f);
+    }
+
+    private static final long[] CONNECT_CHECKS_MS = {500, 2000, 4000, 7000};
+
+    /** The app in front is the stock launcher: open this one. Reads only the package name of the active window. */
+    private void stockHomeInFrontNow() {
+        try {
+            android.view.accessibility.AccessibilityNodeInfo root = getRootInActiveWindow();
+            if (root == null) return;
+            CharSequence pkg = root.getPackageName();
+            if (pkg != null && stockHomePackage.contentEquals(pkg)) {
+                stockHomeInFront = true;
+                openHome();
+            }
+        } catch (RuntimeException ignored) {
+        }
+    }
+
+    /** Checks after openHome: if the stock home is still (or again) the window in front, open this launcher again.
+     *  Covers a start that lost the race with the stock launcher's own slow cold start. */
+    private static final long[] CONFIRM_MS = {700, 2000, 4500};
+    private boolean stockHomeInFront;
+    private final Runnable recheck = () -> {
+        if (stockHomeInFront) openHome();
+        else stockHomeInFrontNow();
+    };
+
+    private void confirmHome() {
+        handler.removeCallbacks(recheck);
+        for (long ms : CONFIRM_MS) handler.postDelayed(recheck, ms);
     }
 
     /** How long power_on_home stays armed after the screen turns on without a reboot. */
+    private boolean isActivity(String pkg, String cls) {
+        try {
+            getPackageManager().getActivityInfo(new ComponentName(pkg, cls), 0);
+            return true;
+        } catch (PackageManager.NameNotFoundException notAnActivity) {
+            return false;
+        }
+    }
+
     static final long SCREEN_ON_WINDOW_MS = 60 * 1000L;
 
     /** power_on_home: armed for the boot window (if this bind is part of the boot) and after every screen-on. */
@@ -392,23 +486,9 @@ public class HomeKeyService extends AccessibilityService {
         return boot >= 0 && boot != lastBoot && uptimeMs < BOOT_WINDOW_MS;
     }
 
-    /** Lets the system see the key, so a long press still does what the firmware gives it. */
-    private static final long HOME_KEY_DELAY_MS = 250;
     private final Handler handler = new Handler(Looper.getMainLooper());
 
-    /** stock_home_redirect on the Home key: when the stock home is already on screen (it came up at boot, before
-     *  Android bound this service), Home brings it up again with no window change, so the redirect above never
-     *  fires and the TV stays on the stock home until another app opens (#1116). A short press opens this
-     *  launcher shortly after the system has handled the key; a long press (Google TV's quick settings) is left
-     *  alone. Held time, not repeats: key repeats are made after accessibility filtering, so none arrive here. */
-    private void redirectHomeKey(KeyEvent event) {
-        if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()
-                && isShortPress(event.getDownTime(), event.getEventTime(), ViewConfiguration.getLongPressTimeout())) {
-            handler.postDelayed(this::openHome, HOME_KEY_DELAY_MS);
-        }
-    }
-
-    static boolean isShortPress(long downTime, long upTime, long longPressTimeout) {
+     static boolean isShortPress(long downTime, long upTime, long longPressTimeout) {
         return upTime - downTime < longPressTimeout;
     }
 

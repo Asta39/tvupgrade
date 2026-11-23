@@ -112,7 +112,8 @@ final class LocalAdb implements AutoCloseable {
         socket.setSoTimeout(30000);
         while (true) {
             Message m = read();
-            if (m.arg1 != local && m.command != CLSE) continue;
+            // Only this command's stream: a late CLSE from an earlier command must not end this one.
+            if (m.arg1 != local) continue;
             if (m.command == OKAY) {
                 remote = m.arg0;
             } else if (m.command == WRTE) {
